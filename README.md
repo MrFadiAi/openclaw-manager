@@ -170,6 +170,60 @@ openclaw-manager/
 | Windows | `.msi`, `.exe` |
 | Linux | `.deb`, `.AppImage` |
 
+## 🍎 macOS 常见问题
+
+### "已损坏，无法打开" 错误
+
+macOS 的 Gatekeeper 安全机制可能会阻止运行未签名的应用。解决方法：
+
+**方法一：移除隔离属性（推荐）**
+
+```bash
+# 对 .app 文件执行
+xattr -cr /Applications/OpenClaw\ Manager.app
+
+# 或者对 .dmg 文件执行（安装前）
+xattr -cr ~/Downloads/OpenClaw-Manager.dmg
+```
+
+**方法二：通过系统偏好设置允许**
+
+1. 打开 **系统偏好设置** > **隐私与安全性**
+2. 在 "安全性" 部分找到被阻止的应用
+3. 点击 **仍要打开**
+
+**方法三：临时禁用 Gatekeeper（不推荐）**
+
+```bash
+# 禁用（需要管理员密码）
+sudo spctl --master-disable
+
+# 安装完成后重新启用
+sudo spctl --master-enable
+```
+
+### 权限问题
+
+如果应用无法正常访问文件或执行操作：
+
+**授予完全磁盘访问权限**
+
+1. 打开 **系统偏好设置** > **隐私与安全性** > **完全磁盘访问权限**
+2. 点击锁图标解锁，添加 **OpenClaw Manager**
+
+**重置权限**
+
+如果权限设置出现异常，可以尝试重置：
+
+```bash
+# 重置辅助功能权限数据库
+sudo tccutil reset Accessibility
+
+# 重置完全磁盘访问权限
+sudo tccutil reset SystemPolicyAllFiles
+```
+```
+
 ## 🎨 设计理念
 
 - **暗色主题**：护眼舒适，适合长时间使用
