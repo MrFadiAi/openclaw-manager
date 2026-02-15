@@ -1,4 +1,4 @@
-// 防止 Windows 系统显示控制台窗口
+// Prevent Windows system from displaying console window
 #![cfg_attr(
     all(not(debug_assertions), target_os = "windows"),
     windows_subsystem = "windows"
@@ -8,15 +8,15 @@ mod commands;
 mod models;
 mod utils;
 
-use commands::{config, diagnostics, installer, process, service};
+use commands::{config, diagnostics, installer, process, service, skills};
 
 fn main() {
-    // 初始化日志 - 默认显示 info 级别日志
+    // Initialize logging - show info level logs by default
     env_logger::Builder::from_env(
         env_logger::Env::default().default_filter_or("info")
     ).init();
     
-    log::info!("🦞 OpenClaw Manager 启动");
+    log::info!("🦞 OpenClaw Manager started");
 
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
@@ -24,17 +24,18 @@ fn main() {
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_notification::init())
         .invoke_handler(tauri::generate_handler![
-            // 服务管理
+            // Service management
             service::get_service_status,
             service::start_service,
             service::stop_service,
             service::restart_service,
             service::get_logs,
-            // 进程管理
+            service::kill_all_port_processes,
+            // Process management
             process::check_openclaw_installed,
             process::get_openclaw_version,
             process::check_port_in_use,
-            // 配置管理
+            // Configuration management
             config::get_config,
             config::save_config,
             config::get_env_value,
@@ -46,7 +47,7 @@ fn main() {
             // Gateway Token
             config::get_or_create_gateway_token,
             config::get_dashboard_url,
-            // AI 配置管理
+            // AI configuration management
             config::get_official_providers,
             config::get_ai_config,
             config::save_provider,
@@ -54,26 +55,44 @@ fn main() {
             config::set_primary_model,
             config::add_available_model,
             config::remove_available_model,
-            // 飞书插件管理
+            // Feishu plugin management
             config::check_feishu_plugin,
             config::install_feishu_plugin,
-            // 诊断测试
+            // MCP management
+            config::get_mcp_config,
+            config::save_mcp_config,
+            config::install_mcp_from_git,
+            config::uninstall_mcp,
+            config::check_mcporter_installed,
+            config::install_mcporter,
+            config::uninstall_mcporter,
+            config::install_mcp_plugin,
+            config::openclaw_config_set,
+            config::test_mcp_server,
+            // Diagnostic tests
             diagnostics::run_doctor,
             diagnostics::test_ai_connection,
             diagnostics::test_channel,
             diagnostics::get_system_info,
             diagnostics::start_channel_login,
-            // 安装器
+            // Installer
             installer::check_environment,
             installer::install_nodejs,
             installer::install_openclaw,
             installer::init_openclaw_config,
             installer::open_install_terminal,
             installer::uninstall_openclaw,
-            // 版本更新
+            // Version update
             installer::check_openclaw_update,
             installer::update_openclaw,
+            // Skills management
+            skills::get_skills,
+            skills::check_clawhub_installed,
+            skills::install_clawhub,
+            skills::install_skill,
+            skills::uninstall_skill,
+            skills::uninstall_clawhub,
         ])
         .run(tauri::generate_context!())
-        .expect("运行 Tauri 应用时发生错误");
+        .expect("Error occurred while running Tauri application");
 }

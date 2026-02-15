@@ -10,61 +10,61 @@ export function useService() {
     try {
       const status = await api.getServiceStatus();
       setServiceStatus(status);
-      serviceLogger.state('服务状态更新', { running: status.running, pid: status.pid });
+      serviceLogger.state('Service status updated', { running: status.running, pid: status.pid });
     } catch (error) {
-      serviceLogger.debug('获取服务状态失败', error);
+      serviceLogger.debug('Failed to get service status', error);
     }
   }, [setServiceStatus]);
 
   const start = useCallback(async () => {
-    serviceLogger.action('启动服务');
-    serviceLogger.info('正在启动服务...');
+    serviceLogger.action('Start service');
+    serviceLogger.info('Starting service...');
     try {
       const result = await api.startService();
-      serviceLogger.info('✅ 服务启动成功', result);
+      serviceLogger.info('✅ Service started successfully', result);
       await fetchStatus();
       return true;
     } catch (error) {
-      serviceLogger.error('❌ 启动服务失败', error);
+      serviceLogger.error('❌ Failed to start service', error);
       throw error;
     }
   }, [fetchStatus]);
 
   const stop = useCallback(async () => {
-    serviceLogger.action('停止服务');
-    serviceLogger.info('正在停止服务...');
+    serviceLogger.action('Stop service');
+    serviceLogger.info('Stopping service...');
     try {
       const result = await api.stopService();
-      serviceLogger.info('✅ 服务已停止', result);
+      serviceLogger.info('✅ Service stopped', result);
       await fetchStatus();
       return true;
     } catch (error) {
-      serviceLogger.error('❌ 停止服务失败', error);
+      serviceLogger.error('❌ Failed to stop service', error);
       throw error;
     }
   }, [fetchStatus]);
 
   const restart = useCallback(async () => {
-    serviceLogger.action('重启服务');
-    serviceLogger.info('正在重启服务...');
+    serviceLogger.action('Restart service');
+    serviceLogger.info('Restarting service...');
     try {
       const result = await api.restartService();
-      serviceLogger.info('✅ 服务已重启', result);
+      serviceLogger.info('✅ Service restarted', result);
       await fetchStatus();
       return true;
     } catch (error) {
-      serviceLogger.error('❌ 重启服务失败', error);
+      serviceLogger.error('❌ Failed to restart service', error);
       throw error;
     }
   }, [fetchStatus]);
 
-  // 自动刷新状态
+  // Auto refresh status
   useEffect(() => {
-    serviceLogger.debug('启动状态自动刷新');
+    serviceLogger.debug('Start auto refresh status');
     fetchStatus();
     const interval = setInterval(fetchStatus, 3000);
     return () => {
-      serviceLogger.debug('停止状态自动刷新');
+      serviceLogger.debug('Stop auto refresh status');
       clearInterval(interval);
     };
   }, [fetchStatus]);

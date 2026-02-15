@@ -1,11 +1,11 @@
 /**
- * 前端日志工具
- * 统一管理所有前端日志输出，方便调试和追踪
+ * Frontend Logger Utility
+ * Centralized management for all frontend log output for easy debugging and tracing
  */
 
 type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
-// 日志条目
+// Log entry
 export interface LogEntry {
   id: number;
   timestamp: Date;
@@ -15,7 +15,7 @@ export interface LogEntry {
   args: unknown[];
 }
 
-// 日志级别权重
+// Log level weights
 const LOG_LEVELS: Record<LogLevel, number> = {
   debug: 0,
   info: 1,
@@ -23,7 +23,7 @@ const LOG_LEVELS: Record<LogLevel, number> = {
   error: 3,
 };
 
-// 日志存储
+// Log storage
 class LogStore {
   private logs: LogEntry[] = [];
   private maxLogs = 500;
@@ -36,13 +36,13 @@ class LogStore {
       id: ++this.idCounter,
     };
     this.logs.push(newEntry);
-    
-    // 限制日志数量
+
+    // Limit log count
     if (this.logs.length > this.maxLogs) {
       this.logs = this.logs.slice(-this.maxLogs);
     }
-    
-    // 通知监听者
+
+    // Notify listeners
     this.listeners.forEach(listener => listener());
   }
 
@@ -61,10 +61,10 @@ class LogStore {
   }
 }
 
-// 全局日志存储实例
+// Global log store instance
 export const logStore = new LogStore();
 
-// 当前日志级别（可通过 localStorage 设置）
+// Current log level (configurable via localStorage)
 const getCurrentLevel = (): LogLevel => {
   if (typeof window !== 'undefined') {
     const level = localStorage.getItem('LOG_LEVEL') as LogLevel;
@@ -72,11 +72,11 @@ const getCurrentLevel = (): LogLevel => {
       return level;
     }
   }
-  // 默认 debug 级别（开发时显示所有日志）
+  // Default to debug level (show all logs during development)
   return 'debug';
 };
 
-// 日志样式
+// Log styles
 const STYLES: Record<LogLevel, string> = {
   debug: 'color: #888; font-weight: normal',
   info: 'color: #4ade80; font-weight: normal',
@@ -84,7 +84,7 @@ const STYLES: Record<LogLevel, string> = {
   error: 'color: #f87171; font-weight: bold',
 };
 
-// 模块颜色（为不同模块分配不同颜色）
+// Module colors (assign different colors to different modules)
 const MODULE_COLORS: Record<string, string> = {
   App: '#a78bfa',
   Service: '#60a5fa',
@@ -137,7 +137,7 @@ class Logger {
       ...args
     );
 
-    // 存储日志
+    // Store log
     logStore.add({
       timestamp: now,
       level,
@@ -163,44 +163,44 @@ class Logger {
     this.formatMessage('error', message, ...args);
   }
 
-  // 记录 API 调用
+  // Log API call
   apiCall(method: string, ...args: unknown[]): void {
-    this.debug(`📡 调用 API: ${method}`, ...args);
+    this.debug(`📡 API Call: ${method}`, ...args);
   }
 
-  // 记录 API 响应
+  // Log API response
   apiResponse(method: string, result: unknown): void {
-    this.debug(`✅ API 响应: ${method}`, result);
+    this.debug(`✅ API Response: ${method}`, result);
   }
 
-  // 记录 API 错误
+  // Log API error
   apiError(method: string, error: unknown): void {
-    this.error(`❌ API 错误: ${method}`, error);
+    this.error(`❌ API Error: ${method}`, error);
   }
 
-  // 记录用户操作
+  // Log user action
   action(action: string, ...args: unknown[]): void {
-    this.info(`👆 用户操作: ${action}`, ...args);
+    this.info(`👆 User Action: ${action}`, ...args);
   }
 
-  // 记录状态变化
+  // Log state change
   state(description: string, state: unknown): void {
-    this.debug(`📊 状态变化: ${description}`, state);
+    this.debug(`📊 State Change: ${description}`, state);
   }
 }
 
-// 创建模块 logger 的工厂函数
+// Factory function to create module logger
 export function createLogger(module: string): Logger {
   return new Logger(module);
 }
 
-// 全局设置日志级别
+// Global function to set log level
 export function setLogLevel(level: LogLevel): void {
   localStorage.setItem('LOG_LEVEL', level);
-  console.log(`%c日志级别已设置为: ${level}`, 'color: #4ade80; font-weight: bold');
+  console.log(`%cLog level set to: ${level}`, 'color: #4ade80; font-weight: bold');
 }
 
-// 导出预创建的常用 logger
+// Export pre-created common loggers
 export const appLogger = createLogger('App');
 export const serviceLogger = createLogger('Service');
 export const configLogger = createLogger('Config');
@@ -211,13 +211,13 @@ export const dashboardLogger = createLogger('Dashboard');
 export const testingLogger = createLogger('Testing');
 export const apiLogger = createLogger('API');
 
-// 在控制台暴露日志控制函数
+// Expose log control functions in console
 if (typeof window !== 'undefined') {
   (window as unknown as Record<string, unknown>).setLogLevel = setLogLevel;
   (window as unknown as Record<string, unknown>).logStore = logStore;
   console.log(
-    '%c🦞 OpenClaw Manager 日志已启用\n' +
-    '%c使用 setLogLevel("debug"|"info"|"warn"|"error") 设置日志级别',
+    '%c🦞 OpenClaw Manager logging enabled\n' +
+    '%cUse setLogLevel("debug"|"info"|"warn"|"error") to set log level',
     'color: #a78bfa; font-weight: bold; font-size: 14px',
     'color: #888; font-size: 12px'
   );

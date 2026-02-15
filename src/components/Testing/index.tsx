@@ -23,37 +23,37 @@ export function Testing() {
   const [loading, setLoading] = useState(false);
 
   const runDiagnostics = async () => {
-    testingLogger.action('运行系统诊断');
-    testingLogger.info('开始系统诊断...');
+    testingLogger.action('Run system diagnostics');
+    testingLogger.info('Starting system diagnostics...');
     setLoading(true);
     setDiagnosticResults([]);
     try {
       const results = await invoke<DiagnosticResult[]>('run_doctor');
-      testingLogger.info(`诊断完成，共 ${results.length} 项检查`);
+      testingLogger.info(`Diagnostics completed, ${results.length} checks total`);
       const passed = results.filter(r => r.passed).length;
-      testingLogger.state('诊断结果', { total: results.length, passed, failed: results.length - passed });
+      testingLogger.state('Diagnostic results', { total: results.length, passed, failed: results.length - passed });
       setDiagnosticResults(results);
     } catch (e) {
-      testingLogger.error('诊断执行失败', e);
+      testingLogger.error('Diagnostics execution failed', e);
       setDiagnosticResults([{
-        name: '诊断执行',
+        name: 'Diagnostics Execution',
         passed: false,
         message: String(e),
-        suggestion: '请检查 OpenClaw 是否正确安装',
+        suggestion: 'Please check if OpenClaw is properly installed',
       }]);
     } finally {
       setLoading(false);
     }
   };
 
-  // 统计结果
+  // Count results
   const passedCount = diagnosticResults.filter(r => r.passed).length;
   const failedCount = diagnosticResults.filter(r => !r.passed).length;
 
   return (
     <div className="h-full overflow-y-auto scroll-container pr-2">
       <div className="max-w-4xl space-y-6">
-        {/* 诊断测试 */}
+        {/* Diagnostic test */}
         <div className="bg-dark-700 rounded-2xl p-6 border border-dark-500">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
@@ -61,9 +61,9 @@ export function Testing() {
                 <Stethoscope size={20} className="text-purple-400" />
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-white">系统诊断</h3>
+                <h3 className="text-lg font-semibold text-white">System Diagnostics</h3>
                 <p className="text-xs text-gray-500">
-                  检查 OpenClaw 安装和配置状态
+                  Check OpenClaw installation and configuration status
                 </p>
               </div>
             </div>
@@ -77,27 +77,27 @@ export function Testing() {
               ) : (
                 <Play size={16} />
               )}
-              运行诊断
+              Run Diagnostics
             </button>
           </div>
 
-          {/* 诊断结果统计 */}
+          {/* Diagnostic results summary */}
           {diagnosticResults.length > 0 && (
             <div className="flex gap-4 mb-4 p-3 bg-dark-600 rounded-lg">
               <div className="flex items-center gap-2">
                 <CheckCircle size={16} className="text-green-400" />
-                <span className="text-sm text-green-400">{passedCount} 项通过</span>
+                <span className="text-sm text-green-400">{passedCount} passed</span>
               </div>
               {failedCount > 0 && (
                 <div className="flex items-center gap-2">
                   <XCircle size={16} className="text-red-400" />
-                  <span className="text-sm text-red-400">{failedCount} 项失败</span>
+                  <span className="text-sm text-red-400">{failedCount} failed</span>
                 </div>
               )}
             </div>
           )}
 
-          {/* 诊断结果列表 */}
+          {/* Diagnostic results list */}
           {diagnosticResults.length > 0 && (
             <motion.div
               initial={{ opacity: 0, y: 10 }}
@@ -138,22 +138,22 @@ export function Testing() {
             </motion.div>
           )}
 
-          {/* 空状态 */}
+          {/* Empty state */}
           {diagnosticResults.length === 0 && !loading && (
             <div className="text-center py-8 text-gray-500">
               <Stethoscope size={48} className="mx-auto mb-3 opacity-30" />
-              <p>点击"运行诊断"按钮开始检查系统状态</p>
+              <p>Click "Run Diagnostics" button to start checking system status</p>
             </div>
           )}
         </div>
 
-        {/* 说明 */}
+        {/* Instructions */}
         <div className="bg-dark-700/50 rounded-xl p-4 border border-dark-500">
-          <h4 className="text-sm font-medium text-gray-400 mb-2">诊断说明</h4>
+          <h4 className="text-sm font-medium text-gray-400 mb-2">Diagnostic Instructions</h4>
           <ul className="text-sm text-gray-500 space-y-1">
-            <li>• 系统诊断会检查 Node.js、OpenClaw 安装、配置文件等状态</li>
-            <li>• AI 连接测试请前往 <span className="text-claw-400">AI 配置</span> 页面进行</li>
-            <li>• 渠道测试请前往 <span className="text-claw-400">消息渠道</span> 页面进行</li>
+            <li>• System diagnostics checks Node.js, OpenClaw installation, config files and other status</li>
+            <li>• For AI connection testing, go to <span className="text-claw-400">AI Configuration</span> page</li>
+            <li>• For channel testing, go to <span className="text-claw-400">Message Channels</span> page</li>
           </ul>
         </div>
       </div>

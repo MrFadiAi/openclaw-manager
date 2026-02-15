@@ -6,37 +6,37 @@ import path from 'path';
 export default defineConfig({
   plugins: [react()],
   
-  // 防止 Vite 清除 Rust 错误信息
+  // Prevent Vite from clearing Rust error messages
   clearScreen: false,
-  
-  // Tauri 期望使用固定端口，如果端口不可用则失败
+
+  // Tauri expects a fixed port, fails if port is unavailable
   server: {
     port: 1420,
     strictPort: true,
     watch: {
-      // 监听 src-tauri 目录变化
+      // Ignore src-tauri directory changes
       ignored: ['**/src-tauri/**'],
     },
   },
-  
+
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
     },
   },
-  
-  // 生产构建配置
+
+  // Production build configuration
   build: {
-    // Tauri 在 Windows 上使用 Chromium，在 macOS 和 Linux 上使用 WebKit
-    target: process.env.TAURI_ENV_PLATFORM === 'windows' 
-      ? 'chrome105' 
+    // Tauri uses Chromium on Windows, WebKit on macOS and Linux
+    target: process.env.TAURI_ENV_PLATFORM === 'windows'
+      ? 'chrome105'
       : 'safari14',
-    // 不压缩以便调试
+    // Disable minification for debugging
     minify: !process.env.TAURI_ENV_DEBUG ? 'esbuild' : false,
-    // 生成 sourcemap 以便调试
+    // Generate sourcemap for debugging
     sourcemap: !!process.env.TAURI_ENV_DEBUG,
   },
-  
-  // 环境变量
+
+  // Environment variables
   envPrefix: ['VITE_', 'TAURI_ENV_'],
 });

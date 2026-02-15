@@ -33,7 +33,7 @@ export function Dashboard({ envStatus, onSetupComplete }: DashboardProps) {
       const result = await api.getServiceStatus();
       setStatus(result);
     } catch {
-      // 静默处理
+      // Handle silently
     } finally {
       setLoading(false);
     }
@@ -45,7 +45,7 @@ export function Dashboard({ envStatus, onSetupComplete }: DashboardProps) {
       const result = await invoke<string[]>('get_logs', { lines: 50 });
       setLogs(result);
     } catch {
-      // 静默处理
+      // Handle silently
     }
   };
 
@@ -53,17 +53,17 @@ export function Dashboard({ envStatus, onSetupComplete }: DashboardProps) {
     fetchStatus();
     fetchLogs();
     if (!isTauri()) return;
-    
+
     const statusInterval = setInterval(fetchStatus, 3000);
     const logsInterval = autoRefreshLogs ? setInterval(fetchLogs, 2000) : null;
-    
+
     return () => {
       clearInterval(statusInterval);
       if (logsInterval) clearInterval(logsInterval);
     };
   }, [autoRefreshLogs]);
 
-  // 自动滚动到日志底部
+  // Auto scroll to bottom of logs
   useEffect(() => {
     if (logsExpanded && logsEndRef.current) {
       logsEndRef.current.scrollIntoView({ behavior: 'smooth' });
@@ -78,7 +78,7 @@ export function Dashboard({ envStatus, onSetupComplete }: DashboardProps) {
       await fetchStatus();
       await fetchLogs();
     } catch (e) {
-      console.error('启动失败:', e);
+      console.error('Start failed:', e);
     } finally {
       setActionLoading(false);
     }
@@ -92,7 +92,7 @@ export function Dashboard({ envStatus, onSetupComplete }: DashboardProps) {
       await fetchStatus();
       await fetchLogs();
     } catch (e) {
-      console.error('停止失败:', e);
+      console.error('Stop failed:', e);
     } finally {
       setActionLoading(false);
     }
@@ -106,7 +106,21 @@ export function Dashboard({ envStatus, onSetupComplete }: DashboardProps) {
       await fetchStatus();
       await fetchLogs();
     } catch (e) {
-      console.error('重启失败:', e);
+      console.error('Restart failed:', e);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleKillAll = async () => {
+    if (!isTauri()) return;
+    setActionLoading(true);
+    try {
+      await invoke<string>('kill_all_port_processes');
+      await fetchStatus();
+      await fetchLogs();
+    } catch (e) {
+      console.error('Kill All failed:', e);
     } finally {
       setActionLoading(false);
     }
@@ -140,7 +154,7 @@ export function Dashboard({ envStatus, onSetupComplete }: DashboardProps) {
     show: { opacity: 1, y: 0 },
   };
 
-  // 检查环境是否就绪
+  // Check if environment is ready
   const needsSetup = envStatus && !envStatus.ready;
 
   return (
@@ -151,19 +165,19 @@ export function Dashboard({ envStatus, onSetupComplete }: DashboardProps) {
         animate="show"
         className="space-y-6"
       >
-        {/* 环境安装向导（仅在需要时显示） */}
+        {/* Environment setup wizard (only shown when needed) */}
         {needsSetup && (
           <motion.div variants={itemVariants}>
             <Setup onComplete={onSetupComplete} embedded />
           </motion.div>
         )}
 
-        {/* 服务状态卡片 */}
+        {/* Service status card */}
         <motion.div variants={itemVariants}>
           <StatusCard status={status} loading={loading} />
         </motion.div>
 
-        {/* 快捷操作 */}
+        {/* Quick actions */}
         <motion.div variants={itemVariants}>
           <QuickActions
             status={status}
@@ -171,28 +185,29 @@ export function Dashboard({ envStatus, onSetupComplete }: DashboardProps) {
             onStart={handleStart}
             onStop={handleStop}
             onRestart={handleRestart}
+            onKillAll={handleKillAll}
           />
         </motion.div>
 
-        {/* 实时日志 */}
+        {/* Real-time logs */}
         <motion.div variants={itemVariants}>
           <div className="bg-dark-700 rounded-2xl border border-dark-500 overflow-hidden">
-            {/* 日志标题栏 */}
-            <div 
+            {/* Log title bar */}
+            <div
               className="flex items-center justify-between px-4 py-3 bg-dark-600/50 cursor-pointer"
               onClick={() => setLogsExpanded(!logsExpanded)}
             >
               <div className="flex items-center gap-2">
                 <Terminal size={16} className="text-gray-500" />
-                <span className="text-sm font-medium text-white">实时日志</span>
+                <span className="text-sm font-medium text-white">Real-time Logs</span>
                 <span className="text-xs text-gray-500">
-                  ({logs.length} 行)
+                  ({logs.length} lines)
                 </span>
               </div>
               <div className="flex items-center gap-3">
                 {logsExpanded && (
                   <>
-                    <label 
+                    <label
                       className="flex items-center gap-2 text-xs text-gray-400"
                       onClick={e => e.stopPropagation()}
                     >
@@ -202,7 +217,7 @@ export function Dashboard({ envStatus, onSetupComplete }: DashboardProps) {
                         onChange={(e) => setAutoRefreshLogs(e.target.checked)}
                         className="w-3 h-3 rounded border-dark-500 bg-dark-600 text-claw-500"
                       />
-                      自动刷新
+                      Auto Refresh
                     </label>
                     <button
                       onClick={(e) => {
@@ -210,7 +225,7 @@ export function Dashboard({ envStatus, onSetupComplete }: DashboardProps) {
                         fetchLogs();
                       }}
                       className="text-gray-500 hover:text-white"
-                      title="刷新日志"
+                      title="Refresh logs"
                     >
                       <RefreshCw size={14} />
                     </button>
@@ -224,12 +239,12 @@ export function Dashboard({ envStatus, onSetupComplete }: DashboardProps) {
               </div>
             </div>
 
-            {/* 日志内容 */}
+            {/* Log content */}
             {logsExpanded && (
               <div className="h-64 overflow-y-auto p-4 font-mono text-xs leading-relaxed bg-dark-800">
                 {logs.length === 0 ? (
                   <div className="h-full flex items-center justify-center text-gray-500">
-                    <p>暂无日志，请先启动服务</p>
+                    <p>No logs yet, please start the service first</p>
                   </div>
                 ) : (
                   <>
@@ -249,7 +264,7 @@ export function Dashboard({ envStatus, onSetupComplete }: DashboardProps) {
           </div>
         </motion.div>
 
-        {/* 系统信息 */}
+        {/* System info */}
         <motion.div variants={itemVariants}>
           <SystemInfo />
         </motion.div>

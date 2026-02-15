@@ -50,6 +50,37 @@ pub fn get_log_file_path() -> String {
     }
 }
 
+/// Get MCP servers install directory
+pub fn get_mcp_install_dir() -> String {
+    if is_windows() {
+        format!("{}\\mcps", get_config_dir())
+    } else {
+        format!("{}/mcps", get_config_dir())
+    }
+}
+
+/// Get MCP configuration file path (separate from openclaw.json)
+pub fn get_mcp_config_file_path() -> String {
+    if is_windows() {
+        format!("{}\\mcps.json", get_config_dir())
+    } else {
+        format!("{}/mcps.json", get_config_dir())
+    }
+}
+
+/// Get mcporter configuration file path (~/.mcporter/mcporter.json)
+pub fn get_mcporter_config_file_path() -> String {
+    if let Some(home) = dirs::home_dir() {
+        if is_windows() {
+            format!("{}\\.mcporter\\mcporter.json", home.display())
+        } else {
+            format!("{}/.mcporter/mcporter.json", home.display())
+        }
+    } else {
+        String::from("~/.mcporter/mcporter.json")
+    }
+}
+
 /// 检测当前平台是否为 macOS
 pub fn is_macos() -> bool {
     env::consts::OS == "macos"

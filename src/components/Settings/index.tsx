@@ -25,7 +25,7 @@ interface SettingsProps {
 export function Settings({ onEnvironmentChange }: SettingsProps) {
   const [identity, setIdentity] = useState({
     botName: 'Clawd',
-    userName: '主人',
+    userName: 'Master',
     timezone: 'Asia/Shanghai',
   });
   const [saving, setSaving] = useState(false);
@@ -36,11 +36,11 @@ export function Settings({ onEnvironmentChange }: SettingsProps) {
   const handleSave = async () => {
     setSaving(true);
     try {
-      // TODO: 保存身份配置
+      // TODO: Save identity configuration
       await new Promise((resolve) => setTimeout(resolve, 500));
-      alert('设置已保存！');
+      alert('Settings saved!');
     } catch (e) {
-      console.error('保存失败:', e);
+      console.error('Failed to save:', e);
     } finally {
       setSaving(false);
     }
@@ -50,10 +50,10 @@ export function Settings({ onEnvironmentChange }: SettingsProps) {
     try {
       const { open } = await import('@tauri-apps/plugin-shell');
       const home = await invoke<{ config_dir: string }>('get_system_info');
-      // 尝试打开配置目录
+      // Try to open the config directory
       await open(home.config_dir);
     } catch (e) {
-      console.error('打开目录失败:', e);
+      console.error('Failed to open directory:', e);
     }
   };
 
@@ -64,9 +64,9 @@ export function Settings({ onEnvironmentChange }: SettingsProps) {
       const result = await invoke<InstallResult>('uninstall_openclaw');
       setUninstallResult(result);
       if (result.success) {
-        // 通知环境状态变化，触发重新检查
+        // Notify environment status change to trigger re-check
         onEnvironmentChange?.();
-        // 卸载成功后关闭确认框
+        // Close confirmation dialog after successful uninstall
         setTimeout(() => {
           setShowUninstallConfirm(false);
         }, 2000);
@@ -74,7 +74,7 @@ export function Settings({ onEnvironmentChange }: SettingsProps) {
     } catch (e) {
       setUninstallResult({
         success: false,
-        message: '卸载过程中发生错误',
+        message: 'An error occurred during uninstallation',
         error: String(e),
       });
     } finally {
@@ -85,22 +85,22 @@ export function Settings({ onEnvironmentChange }: SettingsProps) {
   return (
     <div className="h-full overflow-y-auto scroll-container pr-2">
       <div className="max-w-2xl space-y-6">
-        {/* 身份配置 */}
+        {/* Identity Configuration */}
         <div className="bg-dark-700 rounded-2xl p-6 border border-dark-500">
           <div className="flex items-center gap-3 mb-6">
             <div className="w-10 h-10 rounded-xl bg-claw-500/20 flex items-center justify-center">
               <User size={20} className="text-claw-400" />
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-white">身份配置</h3>
-              <p className="text-xs text-gray-500">设置 AI 助手的名称和称呼</p>
+              <h3 className="text-lg font-semibold text-white">Identity Configuration</h3>
+              <p className="text-xs text-gray-500">Set the AI assistant's name and how it addresses you</p>
             </div>
           </div>
 
           <div className="space-y-4">
             <div>
               <label className="block text-sm text-gray-400 mb-2">
-                AI 助手名称
+                AI Assistant Name
               </label>
               <input
                 type="text"
@@ -115,7 +115,7 @@ export function Settings({ onEnvironmentChange }: SettingsProps) {
 
             <div>
               <label className="block text-sm text-gray-400 mb-2">
-                你的称呼
+                Your Name
               </label>
               <input
                 type="text"
@@ -123,13 +123,13 @@ export function Settings({ onEnvironmentChange }: SettingsProps) {
                 onChange={(e) =>
                   setIdentity({ ...identity, userName: e.target.value })
                 }
-                placeholder="主人"
+                placeholder="Master"
                 className="input-base"
               />
             </div>
 
             <div>
-              <label className="block text-sm text-gray-400 mb-2">时区</label>
+              <label className="block text-sm text-gray-400 mb-2">Timezone</label>
               <select
                 value={identity.timezone}
                 onChange={(e) =>
@@ -137,39 +137,39 @@ export function Settings({ onEnvironmentChange }: SettingsProps) {
                 }
                 className="input-base"
               >
-                <option value="Asia/Shanghai">Asia/Shanghai (北京时间)</option>
-                <option value="Asia/Hong_Kong">Asia/Hong_Kong (香港时间)</option>
-                <option value="Asia/Tokyo">Asia/Tokyo (东京时间)</option>
+                <option value="Asia/Shanghai">Asia/Shanghai (Beijing Time)</option>
+                <option value="Asia/Hong_Kong">Asia/Hong_Kong (Hong Kong Time)</option>
+                <option value="Asia/Tokyo">Asia/Tokyo (Tokyo Time)</option>
                 <option value="America/New_York">
-                  America/New_York (纽约时间)
+                  America/New_York (New York Time)
                 </option>
                 <option value="America/Los_Angeles">
-                  America/Los_Angeles (洛杉矶时间)
+                  America/Los_Angeles (Los Angeles Time)
                 </option>
-                <option value="Europe/London">Europe/London (伦敦时间)</option>
+                <option value="Europe/London">Europe/London (London Time)</option>
                 <option value="UTC">UTC</option>
               </select>
             </div>
           </div>
         </div>
 
-        {/* 安全设置 */}
+        {/* Security Settings */}
         <div className="bg-dark-700 rounded-2xl p-6 border border-dark-500">
           <div className="flex items-center gap-3 mb-6">
             <div className="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center">
               <Shield size={20} className="text-amber-400" />
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-white">安全设置</h3>
-              <p className="text-xs text-gray-500">权限和访问控制</p>
+              <h3 className="text-lg font-semibold text-white">Security Settings</h3>
+              <p className="text-xs text-gray-500">Permissions and access control</p>
             </div>
           </div>
 
           <div className="space-y-4">
             <div className="flex items-center justify-between p-4 bg-dark-600 rounded-lg">
               <div>
-                <p className="text-sm text-white">启用白名单</p>
-                <p className="text-xs text-gray-500">只允许白名单用户访问</p>
+                <p className="text-sm text-white">Enable Whitelist</p>
+                <p className="text-xs text-gray-500">Only allow whitelisted users to access</p>
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
                 <input type="checkbox" className="sr-only peer" />
@@ -179,8 +179,8 @@ export function Settings({ onEnvironmentChange }: SettingsProps) {
 
             <div className="flex items-center justify-between p-4 bg-dark-600 rounded-lg">
               <div>
-                <p className="text-sm text-white">文件访问权限</p>
-                <p className="text-xs text-gray-500">允许 AI 读写本地文件</p>
+                <p className="text-sm text-white">File Access Permission</p>
+                <p className="text-xs text-gray-500">Allow AI to read and write local files</p>
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
                 <input type="checkbox" className="sr-only peer" />
@@ -190,15 +190,15 @@ export function Settings({ onEnvironmentChange }: SettingsProps) {
           </div>
         </div>
 
-        {/* 高级设置 */}
+        {/* Advanced Settings */}
         <div className="bg-dark-700 rounded-2xl p-6 border border-dark-500">
           <div className="flex items-center gap-3 mb-6">
             <div className="w-10 h-10 rounded-xl bg-purple-500/20 flex items-center justify-center">
               <FileCode size={20} className="text-purple-400" />
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-white">高级设置</h3>
-              <p className="text-xs text-gray-500">配置文件和目录</p>
+              <h3 className="text-lg font-semibold text-white">Advanced Settings</h3>
+              <p className="text-xs text-gray-500">Configuration files and directories</p>
             </div>
           </div>
 
@@ -209,22 +209,22 @@ export function Settings({ onEnvironmentChange }: SettingsProps) {
             >
               <FolderOpen size={18} className="text-gray-400" />
               <div className="flex-1">
-                <p className="text-sm text-white">打开配置目录</p>
+                <p className="text-sm text-white">Open Configuration Directory</p>
                 <p className="text-xs text-gray-500">~/.openclaw</p>
               </div>
             </button>
           </div>
         </div>
 
-        {/* 危险操作 */}
+        {/* Danger Zone */}
         <div className="bg-dark-700 rounded-2xl p-6 border border-red-900/30">
           <div className="flex items-center gap-3 mb-6">
             <div className="w-10 h-10 rounded-xl bg-red-500/20 flex items-center justify-center">
               <AlertTriangle size={20} className="text-red-400" />
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-white">危险操作</h3>
-              <p className="text-xs text-gray-500">以下操作不可撤销，请谨慎操作</p>
+              <h3 className="text-lg font-semibold text-white">Danger Zone</h3>
+              <p className="text-xs text-gray-500">The following actions are irreversible, please proceed with caution</p>
             </div>
           </div>
 
@@ -235,14 +235,14 @@ export function Settings({ onEnvironmentChange }: SettingsProps) {
             >
               <Trash2 size={18} className="text-red-400" />
               <div className="flex-1">
-                <p className="text-sm text-red-300">卸载 OpenClaw</p>
-                <p className="text-xs text-red-400/70">从系统中移除 OpenClaw CLI 工具</p>
+                <p className="text-sm text-red-300">Uninstall OpenClaw</p>
+                <p className="text-xs text-red-400/70">Remove OpenClaw CLI tool from the system</p>
               </div>
             </button>
           </div>
         </div>
 
-        {/* 卸载确认对话框 */}
+        {/* Uninstall Confirmation Dialog */}
         {showUninstallConfirm && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
             <div className="bg-dark-700 rounded-2xl p-6 border border-dark-500 max-w-md w-full mx-4 shadow-2xl">
@@ -251,7 +251,7 @@ export function Settings({ onEnvironmentChange }: SettingsProps) {
                   <div className="w-10 h-10 rounded-xl bg-red-500/20 flex items-center justify-center">
                     <AlertTriangle size={20} className="text-red-400" />
                   </div>
-                  <h3 className="text-lg font-semibold text-white">确认卸载</h3>
+                  <h3 className="text-lg font-semibold text-white">Confirm Uninstall</h3>
                 </div>
                 <button
                   onClick={() => {
@@ -267,20 +267,20 @@ export function Settings({ onEnvironmentChange }: SettingsProps) {
               {!uninstallResult ? (
                 <>
                   <p className="text-gray-300 mb-4">
-                    确定要卸载 OpenClaw 吗？此操作将：
+                    Are you sure you want to uninstall OpenClaw? This action will:
                   </p>
                   <ul className="text-sm text-gray-400 mb-6 space-y-2">
                     <li className="flex items-center gap-2">
                       <span className="w-1.5 h-1.5 bg-red-400 rounded-full"></span>
-                      停止正在运行的服务
+                      Stop any running services
                     </li>
                     <li className="flex items-center gap-2">
                       <span className="w-1.5 h-1.5 bg-red-400 rounded-full"></span>
-                      移除 OpenClaw CLI 工具
+                      Remove the OpenClaw CLI tool
                     </li>
                     <li className="flex items-center gap-2">
                       <span className="w-1.5 h-1.5 bg-yellow-400 rounded-full"></span>
-                      配置文件将被保留在 ~/.openclaw
+                      Configuration files will be preserved in ~/.openclaw
                     </li>
                   </ul>
 
@@ -289,7 +289,7 @@ export function Settings({ onEnvironmentChange }: SettingsProps) {
                       onClick={() => setShowUninstallConfirm(false)}
                       className="flex-1 px-4 py-2.5 bg-dark-600 hover:bg-dark-500 text-white rounded-lg transition-colors"
                     >
-                      取消
+                      Cancel
                     </button>
                     <button
                       onClick={handleUninstall}
@@ -299,12 +299,12 @@ export function Settings({ onEnvironmentChange }: SettingsProps) {
                       {uninstalling ? (
                         <>
                           <Loader2 size={16} className="animate-spin" />
-                          卸载中...
+                          Uninstalling...
                         </>
                       ) : (
                         <>
                           <Trash2 size={16} />
-                          确认卸载
+                          Confirm Uninstall
                         </>
                       )}
                     </button>
@@ -322,7 +322,7 @@ export function Settings({ onEnvironmentChange }: SettingsProps) {
                   )}
                   {uninstallResult.success && (
                     <p className="text-xs text-gray-400 mt-3">
-                      对话框将自动关闭...
+                      Dialog will close automatically...
                     </p>
                   )}
                 </div>
@@ -331,7 +331,7 @@ export function Settings({ onEnvironmentChange }: SettingsProps) {
           </div>
         )}
 
-        {/* 保存按钮 */}
+        {/* Save Button */}
         <div className="flex justify-end">
           <button
             onClick={handleSave}
@@ -343,7 +343,7 @@ export function Settings({ onEnvironmentChange }: SettingsProps) {
             ) : (
               <Save size={16} />
             )}
-            保存设置
+            Save Settings
           </button>
         </div>
       </div>

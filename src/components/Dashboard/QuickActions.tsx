@@ -1,4 +1,4 @@
-import { Play, Square, RotateCcw, Stethoscope } from 'lucide-react';
+import { Play, Square, RotateCcw, Stethoscope, Skull } from 'lucide-react';
 import clsx from 'clsx';
 
 interface ServiceStatus {
@@ -13,6 +13,7 @@ interface QuickActionsProps {
   onStart: () => void;
   onStop: () => void;
   onRestart: () => void;
+  onKillAll: () => void;
 }
 
 export function QuickActions({
@@ -21,15 +22,16 @@ export function QuickActions({
   onStart,
   onStop,
   onRestart,
+  onKillAll,
 }: QuickActionsProps) {
   const isRunning = status?.running || false;
 
   return (
     <div className="bg-dark-700 rounded-2xl p-6 border border-dark-500">
-      <h3 className="text-lg font-semibold text-white mb-4">快捷操作</h3>
+      <h3 className="text-lg font-semibold text-white mb-4">Quick Actions</h3>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {/* 启动按钮 */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        {/* Start button */}
         <button
           onClick={onStart}
           disabled={loading || isRunning}
@@ -58,11 +60,11 @@ export function QuickActions({
               isRunning ? 'text-gray-500' : 'text-gray-300'
             )}
           >
-            启动
+            Start
           </span>
         </button>
 
-        {/* 停止按钮 */}
+        {/* Stop button */}
         <button
           onClick={onStop}
           disabled={loading || !isRunning}
@@ -91,11 +93,11 @@ export function QuickActions({
               !isRunning ? 'text-gray-500' : 'text-gray-300'
             )}
           >
-            停止
+            Stop
           </span>
         </button>
 
-        {/* 重启按钮 */}
+        {/* Restart button */}
         <button
           onClick={onRestart}
           disabled={loading}
@@ -111,10 +113,26 @@ export function QuickActions({
               className={clsx('text-amber-400', loading && 'animate-spin')}
             />
           </div>
-          <span className="text-sm font-medium text-gray-300">重启</span>
+          <span className="text-sm font-medium text-gray-300">Restart</span>
         </button>
 
-        {/* 诊断按钮 */}
+        {/* Kill All button */}
+        <button
+          onClick={onKillAll}
+          disabled={loading}
+          className={clsx(
+            'flex flex-col items-center gap-3 p-4 rounded-xl transition-all',
+            'border border-dark-500',
+            'bg-dark-600 hover:bg-rose-500/20 hover:border-rose-500/50'
+          )}
+        >
+          <div className="w-12 h-12 rounded-full flex items-center justify-center bg-rose-500/20">
+            <Skull size={20} className="text-rose-400" />
+          </div>
+          <span className="text-sm font-medium text-gray-300">Kill All</span>
+        </button>
+
+        {/* Diagnostics button */}
         <button
           disabled={loading}
           className={clsx(
@@ -126,7 +144,7 @@ export function QuickActions({
           <div className="w-12 h-12 rounded-full flex items-center justify-center bg-purple-500/20">
             <Stethoscope size={20} className="text-purple-400" />
           </div>
-          <span className="text-sm font-medium text-gray-300">诊断</span>
+          <span className="text-sm font-medium text-gray-300">Diagnostics</span>
         </button>
       </div>
     </div>

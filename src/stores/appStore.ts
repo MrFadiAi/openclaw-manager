@@ -2,19 +2,19 @@ import { create } from 'zustand';
 import type { ServiceStatus, SystemInfo } from '../lib/tauri';
 
 interface AppState {
-  // 服务状态
+  // Service status
   serviceStatus: ServiceStatus | null;
   setServiceStatus: (status: ServiceStatus | null) => void;
 
-  // 系统信息
+  // System information
   systemInfo: SystemInfo | null;
   setSystemInfo: (info: SystemInfo | null) => void;
 
-  // UI 状态
+  // UI state
   loading: boolean;
   setLoading: (loading: boolean) => void;
 
-  // 通知
+  // Notifications
   notifications: Notification[];
   addNotification: (notification: Omit<Notification, 'id'>) => void;
   removeNotification: (id: string) => void;
@@ -28,19 +28,19 @@ interface Notification {
 }
 
 export const useAppStore = create<AppState>((set) => ({
-  // 服务状态
+  // Service status
   serviceStatus: null,
   setServiceStatus: (status) => set({ serviceStatus: status }),
 
-  // 系统信息
+  // System information
   systemInfo: null,
   setSystemInfo: (info) => set({ systemInfo: info }),
 
-  // UI 状态
+  // UI state
   loading: false,
   setLoading: (loading) => set({ loading }),
 
-  // 通知
+  // Notifications
   notifications: [],
   addNotification: (notification) =>
     set((state) => ({

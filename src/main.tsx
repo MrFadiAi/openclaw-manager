@@ -2,15 +2,15 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import './styles/globals.css';
-// 确保 logger 初始化（会在控制台显示启动信息）
+// Ensure logger is initialized (will show startup info in console)
 import './lib/logger';
 
 console.log(
-  '%c🦞 OpenClaw Manager  启动',
+  '%c🦞 OpenClaw Manager  Starting',
   'background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; font-size: 16px; padding: 8px 16px; border-radius: 4px; font-weight: bold;'
 );
 console.log(
-  '%c提示: 打开开发者工具 (Cmd+Option+I / Ctrl+Shift+I) 可以查看详细日志',
+  '%cTip: Open Developer Tools (Cmd+Option+I / Ctrl+Shift+I) to view detailed logs',
   'color: #888; font-size: 12px;'
 );
 

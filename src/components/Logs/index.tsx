@@ -45,39 +45,39 @@ export function Logs() {
   const [autoScroll, setAutoScroll] = useState(true);
   const logsEndRef = useRef<HTMLDivElement>(null);
 
-  // 订阅日志更新
+  // Subscribe to log updates
   useEffect(() => {
     const updateLogs = () => {
       setLogs(logStore.getAll());
     };
-    
-    updateLogs(); // 初始加载
+
+    updateLogs(); // Initial load
     return logStore.subscribe(updateLogs);
   }, []);
 
-  // 自动滚动
+  // Auto scroll
   useEffect(() => {
     if (autoScroll && logsEndRef.current) {
       logsEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [logs, autoScroll]);
 
-  // 过滤日志
+  // Filter logs
   const filteredLogs = logs.filter(log => {
     if (filter !== 'all' && log.level !== filter) return false;
     if (moduleFilter !== 'all' && log.module !== moduleFilter) return false;
     return true;
   });
 
-  // 获取所有模块
+  // Get all modules
   const modules = [...new Set(logs.map(log => log.module))];
 
-  // 清除日志
+  // Clear logs
   const handleClear = () => {
     logStore.clear();
   };
 
-  // 导出日志
+  // Export logs
   const handleExport = () => {
     const content = filteredLogs.map(log => {
       const time = log.timestamp.toLocaleTimeString('zh-CN', {
@@ -99,7 +99,7 @@ export function Logs() {
     URL.revokeObjectURL(url);
   };
 
-  // 格式化时间
+  // Format time
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString('zh-CN', {
       hour12: false,
@@ -109,7 +109,7 @@ export function Logs() {
     }) + '.' + String(date.getMilliseconds()).padStart(3, '0');
   };
 
-  // 格式化参数
+  // Format arguments
   const formatArgs = (args: unknown[]): string => {
     if (args.length === 0) return '';
     try {
@@ -120,15 +120,15 @@ export function Logs() {
         return String(arg);
       }).join(' ');
     } catch {
-      return '[无法序列化]';
+      return '[Cannot serialize]';
     }
   };
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
-      {/* 工具栏 */}
+      {/* Toolbar */}
       <div className="flex items-center gap-4 mb-4 flex-wrap">
-        {/* 级别过滤 */}
+        {/* Level filter */}
         <div className="flex items-center gap-2">
           <Filter size={14} className="text-gray-500" />
           <select
@@ -136,7 +136,7 @@ export function Logs() {
             onChange={(e) => setFilter(e.target.value as FilterLevel)}
             className="bg-dark-700 border border-dark-500 rounded-lg px-3 py-1.5 text-sm text-gray-300"
           >
-            <option value="all">所有级别</option>
+            <option value="all">All Levels</option>
             <option value="debug">Debug</option>
             <option value="info">Info</option>
             <option value="warn">Warn</option>
@@ -144,13 +144,13 @@ export function Logs() {
           </select>
         </div>
 
-        {/* 模块过滤 */}
+        {/* Module filter */}
         <select
           value={moduleFilter}
           onChange={(e) => setModuleFilter(e.target.value)}
           className="bg-dark-700 border border-dark-500 rounded-lg px-3 py-1.5 text-sm text-gray-300"
         >
-          <option value="all">所有模块</option>
+          <option value="all">All Modules</option>
           {modules.map(module => (
             <option key={module} value={module}>{module}</option>
           ))}
@@ -158,14 +158,14 @@ export function Logs() {
 
         <div className="flex-1" />
 
-        {/* 统计 */}
+        {/* Statistics */}
         <div className="flex items-center gap-3 text-xs text-gray-500">
-          <span>{filteredLogs.length} / {logs.length} 条</span>
-          <span className="text-red-400">{logs.filter(l => l.level === 'error').length} 错误</span>
-          <span className="text-yellow-400">{logs.filter(l => l.level === 'warn').length} 警告</span>
+          <span>{filteredLogs.length} / {logs.length} entries</span>
+          <span className="text-red-400">{logs.filter(l => l.level === 'error').length} errors</span>
+          <span className="text-yellow-400">{logs.filter(l => l.level === 'warn').length} warnings</span>
         </div>
 
-        {/* 操作按钮 */}
+        {/* Action buttons */}
         <div className="flex items-center gap-2">
           <label className="flex items-center gap-1 text-xs text-gray-400">
             <input
@@ -174,47 +174,47 @@ export function Logs() {
               onChange={(e) => setAutoScroll(e.target.checked)}
               className="w-3 h-3 rounded"
             />
-            自动滚动
+            Auto scroll
           </label>
           <button
             onClick={handleExport}
             className="icon-button text-gray-400 hover:text-white"
-            title="导出日志"
+            title="Export logs"
           >
             <Download size={16} />
           </button>
           <button
             onClick={() => setLogs(logStore.getAll())}
             className="icon-button text-gray-400 hover:text-white"
-            title="刷新"
+            title="Refresh"
           >
             <RefreshCw size={16} />
           </button>
           <button
             onClick={handleClear}
             className="icon-button text-gray-400 hover:text-red-400"
-            title="清除日志"
+            title="Clear logs"
           >
             <Trash2 size={16} />
           </button>
         </div>
       </div>
 
-      {/* 日志列表 */}
+      {/* Log list */}
       <div className="flex-1 bg-dark-800 rounded-xl border border-dark-600 overflow-hidden flex flex-col">
-        {/* 标题栏 */}
+        {/* Title bar */}
         <div className="flex items-center gap-2 px-4 py-2 bg-dark-700 border-b border-dark-600">
           <Terminal size={14} className="text-gray-500" />
-          <span className="text-xs text-gray-400 font-medium">应用日志</span>
+          <span className="text-xs text-gray-400 font-medium">Application Logs</span>
         </div>
 
-        {/* 日志内容 */}
+        {/* Log content */}
         <div className="flex-1 overflow-y-auto p-2 font-mono text-xs">
           {filteredLogs.length === 0 ? (
             <div className="h-full flex items-center justify-center text-gray-500">
               <div className="text-center">
                 <Terminal size={32} className="mx-auto mb-2 opacity-50" />
-                <p>暂无日志</p>
+                <p>No logs available</p>
               </div>
             </div>
           ) : (

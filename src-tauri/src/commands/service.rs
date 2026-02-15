@@ -2,19 +2,19 @@ use crate::models::ServiceStatus;
 use crate::utils::shell;
 use tauri::command;
 use std::process::Command;
-use log::{info, debug};
+use log::{info, warn, debug};
 
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
 
-/// Windows CREATE_NO_WINDOW 标志，用于隐藏控制台窗口
+/// Windows CREATE_NO_WINDOW flag to hide console window
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x08000000;
 
 const SERVICE_PORT: u16 = 18789;
 
-/// 检测端口是否有服务在监听，返回 PID
-/// 简单直接：端口被占用 = 服务运行中
+/// Check if a service is listening on the port, return PID
+/// Simple and direct: port in use = service running
 fn check_port_listening(port: u16) -> Option<u32> {
     #[cfg(unix)]
     {
@@ -57,10 +57,59 @@ fn check_port_listening(port: u16) -> Option<u32> {
     }
 }
 
-/// 获取服务状态（简单版：直接检查端口占用）
+/// Find ALL PIDs using a given port (not just the first one)
+fn find_all_port_pids(port: u16) -> Vec<u32> {
+    let mut pids = Vec::new();
+
+    #[cfg(unix)]
+    {
+        if let Ok(output) = Command::new("lsof")
+            .args(["-ti", &format!(":{}", port)])
+            .output()
+        {
+            if output.status.success() {
+                for line in String::from_utf8_lossy(&output.stdout).lines() {
+                    if let Ok(pid) = line.trim().parse::<u32>() {
+                        if pid > 0 && !pids.contains(&pid) {
+                            pids.push(pid);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[cfg(windows)]
+    {
+        let mut cmd = Command::new("netstat");
+        cmd.args(["-ano"]);
+        cmd.creation_flags(CREATE_NO_WINDOW);
+
+        if let Ok(output) = cmd.output() {
+            if output.status.success() {
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                for line in stdout.lines() {
+                    if line.contains(&format!(":{}", port)) {
+                        if let Some(pid_str) = line.split_whitespace().last() {
+                            if let Ok(pid) = pid_str.parse::<u32>() {
+                                if pid > 0 && !pids.contains(&pid) {
+                                    pids.push(pid);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    pids
+}
+
+/// Get service status (simple version: directly check port usage)
 #[command]
 pub async fn get_service_status() -> Result<ServiceStatus, String> {
-    // 简单直接：检查端口是否被占用
+    // Simple and direct: check if port is in use
     let pid = check_port_listening(SERVICE_PORT);
     let running = pid.is_some();
     
@@ -74,104 +123,177 @@ pub async fn get_service_status() -> Result<ServiceStatus, String> {
     })
 }
 
-/// 启动服务
+/// Start service
 #[command]
 pub async fn start_service() -> Result<String, String> {
-    info!("[服务] 启动服务...");
-    
-    // 检查是否已经运行
+    info!("[Service] Starting service...");
+
+    // Check if already running
     let status = get_service_status().await?;
     if status.running {
-        info!("[服务] 服务已在运行中");
-        return Err("服务已在运行中".to_string());
+        info!("[Service] Service is already running");
+        return Err("Service is already running".to_string());
     }
-    
-    // 检查 openclaw 命令是否存在
+
+    // Check if openclaw command exists
     let openclaw_path = shell::get_openclaw_path();
     if openclaw_path.is_none() {
-        info!("[服务] 找不到 openclaw 命令");
-        return Err("找不到 openclaw 命令，请先通过 npm install -g openclaw 安装".to_string());
+        info!("[Service] openclaw command not found");
+        return Err("openclaw command not found, please install it via npm install -g openclaw".to_string());
     }
-    info!("[服务] openclaw 路径: {:?}", openclaw_path);
-    
-    // 直接后台启动 gateway（不等待 doctor，避免阻塞）
-    info!("[服务] 后台启动 gateway...");
+    info!("[Service] openclaw path: {:?}", openclaw_path);
+
+    // Start gateway in background directly (do not wait for doctor, avoid blocking)
+    info!("[Service] Starting gateway in background...");
     shell::spawn_openclaw_gateway()
-        .map_err(|e| format!("启动服务失败: {}", e))?;
-    
-    // 轮询等待端口开始监听（最多 15 秒）
-    info!("[服务] 等待端口 {} 开始监听...", SERVICE_PORT);
+        .map_err(|e| format!("Failed to start service: {}", e))?;
+
+    // Poll and wait for port to start listening (max 15 seconds)
+    info!("[Service] Waiting for port {} to start listening...", SERVICE_PORT);
     for i in 1..=15 {
         std::thread::sleep(std::time::Duration::from_secs(1));
         if let Some(pid) = check_port_listening(SERVICE_PORT) {
-            info!("[服务] ✓ 启动成功 ({}秒), PID: {}", i, pid);
-            return Ok(format!("服务已启动，PID: {}", pid));
+            info!("[Service] Successfully started ({}s), PID: {}", i, pid);
+            return Ok(format!("Service started, PID: {}", pid));
         }
         if i % 3 == 0 {
-            debug!("[服务] 等待中... ({}秒)", i);
+            debug!("[Service] Waiting... ({}s)", i);
         }
     }
-    
-    info!("[服务] 等待超时，端口仍未监听");
-    Err("服务启动超时（15秒），请检查 openclaw 日志".to_string())
+
+    info!("[Service] Wait timeout, port still not listening");
+    Err("Service start timeout (15s), please check openclaw logs".to_string())
 }
 
-/// 停止服务
+/// Stop service
 #[command]
 pub async fn stop_service() -> Result<String, String> {
-    info!("[服务] 停止服务...");
-    
+    info!("[Service] Stopping service...");
+
     let _ = shell::run_openclaw(&["gateway", "stop"]);
     std::thread::sleep(std::time::Duration::from_millis(500));
-    
+
     let status = get_service_status().await?;
     if !status.running {
-        info!("[服务] ✓ 已停止");
-        return Ok("服务已停止".to_string());
+        info!("[Service] Successfully stopped");
+        return Ok("Service stopped".to_string());
     }
-    
-    // 尝试强制停止
+
+    // Try force stop
     let _ = shell::run_openclaw(&["gateway", "stop", "--force"]);
     std::thread::sleep(std::time::Duration::from_millis(500));
-    
+
     let status = get_service_status().await?;
     if status.running {
-        Err(format!("无法停止服务，PID: {:?}", status.pid))
+        Err(format!("Unable to stop service, PID: {:?}", status.pid))
     } else {
-        info!("[服务] ✓ 已停止");
-        Ok("服务已停止".to_string())
+        info!("[Service] Successfully stopped");
+        Ok("Service stopped".to_string())
     }
 }
 
-/// 重启服务
+/// Restart service
 #[command]
 pub async fn restart_service() -> Result<String, String> {
-    info!("[服务] 重启服务...");
-    
+    info!("[Service] Restarting service...");
+
     let _ = shell::run_openclaw(&["gateway", "restart"]);
     std::thread::sleep(std::time::Duration::from_secs(2));
-    
+
     let status = get_service_status().await?;
     if status.running {
-        info!("[服务] ✓ 重启成功, PID: {:?}", status.pid);
-        Ok(format!("服务已重启，PID: {:?}", status.pid))
+        info!("[Service] Successfully restarted, PID: {:?}", status.pid);
+        Ok(format!("Service restarted, PID: {:?}", status.pid))
     } else {
-        // 手动停止再启动
+        // Manually stop then start
         let _ = stop_service().await;
         std::thread::sleep(std::time::Duration::from_secs(1));
         start_service().await
     }
 }
 
-/// 获取日志
+/// Get logs
 #[command]
 pub async fn get_logs(lines: Option<u32>) -> Result<Vec<String>, String> {
     let n = lines.unwrap_or(100);
-    
+
     match shell::run_openclaw(&["logs", "--lines", &n.to_string()]) {
         Ok(output) => {
             Ok(output.lines().map(|s| s.to_string()).collect())
         }
-        Err(e) => Err(format!("读取日志失败: {}", e))
+        Err(e) => Err(format!("Failed to read logs: {}", e))
     }
+}
+
+/// Kill ALL processes using port 18789
+#[command]
+pub async fn kill_all_port_processes() -> Result<String, String> {
+    info!("[Service] Kill All: Finding all processes on port {}...", SERVICE_PORT);
+
+    let pids = find_all_port_pids(SERVICE_PORT);
+
+    if pids.is_empty() {
+        info!("[Service] Kill All: No processes found on port {}", SERVICE_PORT);
+        return Ok("No processes found on port 18789".to_string());
+    }
+
+    info!("[Service] Kill All: Found {} process(es): {:?}", pids.len(), pids);
+
+    let mut killed = 0u32;
+    let mut failed = 0u32;
+
+    for pid in &pids {
+        info!("[Service] Kill All: Killing PID {}...", pid);
+
+        #[cfg(windows)]
+        {
+            let mut cmd = Command::new("taskkill");
+            cmd.args(["/F", "/PID", &pid.to_string()]);
+            cmd.creation_flags(CREATE_NO_WINDOW);
+
+            match cmd.output() {
+                Ok(output) if output.status.success() => {
+                    info!("[Service] Kill All: Successfully killed PID {}", pid);
+                    killed += 1;
+                }
+                Ok(output) => {
+                    let stderr = String::from_utf8_lossy(&output.stderr);
+                    warn!("[Service] Kill All: Failed to kill PID {}: {}", pid, stderr.trim());
+                    failed += 1;
+                }
+                Err(e) => {
+                    warn!("[Service] Kill All: Error killing PID {}: {}", pid, e);
+                    failed += 1;
+                }
+            }
+        }
+
+        #[cfg(unix)]
+        {
+            match Command::new("kill").args(["-9", &pid.to_string()]).output() {
+                Ok(output) if output.status.success() => {
+                    info!("[Service] Kill All: Successfully killed PID {}", pid);
+                    killed += 1;
+                }
+                Ok(output) => {
+                    let stderr = String::from_utf8_lossy(&output.stderr);
+                    warn!("[Service] Kill All: Failed to kill PID {}: {}", pid, stderr.trim());
+                    failed += 1;
+                }
+                Err(e) => {
+                    warn!("[Service] Kill All: Error killing PID {}: {}", pid, e);
+                    failed += 1;
+                }
+            }
+        }
+    }
+
+    let msg = if failed == 0 {
+        format!("Killed {} process(es) on port 18789", killed)
+    } else {
+        format!("Killed {}, failed to kill {} process(es) on port 18789", killed, failed)
+    };
+
+    info!("[Service] Kill All: {}", msg);
+    Ok(msg)
 }

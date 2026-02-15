@@ -39,7 +39,7 @@ interface ChannelConfig {
   config: Record<string, unknown>;
 }
 
-// 渠道配置字段定义
+// Channel configuration field definition
 interface ChannelField {
   key: string;
   label: string;
@@ -64,20 +64,20 @@ const channelInfo: Record<
     icon: <MessageCircle size={20} />,
     color: 'text-blue-400',
     fields: [
-      { key: 'botToken', label: 'Bot Token', type: 'password', placeholder: '从 @BotFather 获取', required: true },
-      { key: 'userId', label: 'User ID', type: 'text', placeholder: '你的 Telegram User ID', required: true },
-      { key: 'dmPolicy', label: '私聊策略', type: 'select', options: [
-        { value: 'pairing', label: '配对模式' },
-        { value: 'open', label: '开放模式' },
-        { value: 'disabled', label: '禁用' },
+      { key: 'botToken', label: 'Bot Token', type: 'password', placeholder: 'Get from @BotFather', required: true },
+      { key: 'userId', label: 'User ID', type: 'text', placeholder: 'Your Telegram User ID', required: true },
+      { key: 'dmPolicy', label: 'DM Policy', type: 'select', options: [
+        { value: 'pairing', label: 'Pairing Mode' },
+        { value: 'open', label: 'Open Mode' },
+        { value: 'disabled', label: 'Disabled' },
       ]},
-      { key: 'groupPolicy', label: '群组策略', type: 'select', options: [
-        { value: 'allowlist', label: '白名单' },
-        { value: 'open', label: '开放' },
-        { value: 'disabled', label: '禁用' },
+      { key: 'groupPolicy', label: 'Group Policy', type: 'select', options: [
+        { value: 'allowlist', label: 'Allowlist' },
+        { value: 'open', label: 'Open' },
+        { value: 'disabled', label: 'Disabled' },
       ]},
     ],
-    helpText: '1. 搜索 @BotFather 发送 /newbot 获取 Token  2. 搜索 @userinfobot 获取 User ID',
+    helpText: '1. Search @BotFather and send /newbot to get Token  2. Search @userinfobot to get User ID',
   },
   discord: {
     name: 'Discord',
@@ -85,14 +85,14 @@ const channelInfo: Record<
     color: 'text-indigo-400',
     fields: [
       { key: 'botToken', label: 'Bot Token', type: 'password', placeholder: 'Discord Bot Token', required: true },
-      { key: 'testChannelId', label: '测试 Channel ID', type: 'text', placeholder: '用于发送测试消息的频道 ID (可选)' },
-      { key: 'dmPolicy', label: '私聊策略', type: 'select', options: [
-        { value: 'pairing', label: '配对模式' },
-        { value: 'open', label: '开放模式' },
-        { value: 'disabled', label: '禁用' },
+      { key: 'testChannelId', label: 'Test Channel ID', type: 'text', placeholder: 'Channel ID for sending test messages (optional)' },
+      { key: 'dmPolicy', label: 'DM Policy', type: 'select', options: [
+        { value: 'pairing', label: 'Pairing Mode' },
+        { value: 'open', label: 'Open Mode' },
+        { value: 'disabled', label: 'Disabled' },
       ]},
     ],
-    helpText: '从 Discord Developer Portal 获取，开启开发者模式可复制 Channel ID',
+    helpText: 'Get from Discord Developer Portal, enable Developer Mode to copy Channel ID',
   },
   slack: {
     name: 'Slack',
@@ -101,88 +101,88 @@ const channelInfo: Record<
     fields: [
       { key: 'botToken', label: 'Bot Token', type: 'password', placeholder: 'xoxb-...', required: true },
       { key: 'appToken', label: 'App Token', type: 'password', placeholder: 'xapp-...' },
-      { key: 'testChannelId', label: '测试 Channel ID', type: 'text', placeholder: '用于发送测试消息的频道 ID (可选)' },
+      { key: 'testChannelId', label: 'Test Channel ID', type: 'text', placeholder: 'Channel ID for sending test messages (optional)' },
     ],
-    helpText: '从 Slack API 后台获取，Channel ID 可从频道详情复制',
+    helpText: 'Get from Slack API dashboard, Channel ID can be copied from channel details',
   },
   feishu: {
-    name: '飞书',
+    name: 'Feishu',
     icon: <MessagesSquare size={20} />,
     color: 'text-blue-500',
     fields: [
-      { key: 'appId', label: 'App ID', type: 'text', placeholder: '飞书应用 App ID', required: true },
-      { key: 'appSecret', label: 'App Secret', type: 'password', placeholder: '飞书应用 App Secret', required: true },
-      { key: 'testChatId', label: '测试 Chat ID', type: 'text', placeholder: '用于发送测试消息的群聊/用户 ID (可选)' },
-      { key: 'connectionMode', label: '连接模式', type: 'select', options: [
-        { value: 'websocket', label: 'WebSocket (推荐)' },
+      { key: 'appId', label: 'App ID', type: 'text', placeholder: 'Feishu App ID', required: true },
+      { key: 'appSecret', label: 'App Secret', type: 'password', placeholder: 'Feishu App Secret', required: true },
+      { key: 'testChatId', label: 'Test Chat ID', type: 'text', placeholder: 'Group/User ID for sending test messages (optional)' },
+      { key: 'connectionMode', label: 'Connection Mode', type: 'select', options: [
+        { value: 'websocket', label: 'WebSocket (Recommended)' },
         { value: 'webhook', label: 'Webhook' },
       ]},
-      { key: 'domain', label: '部署区域', type: 'select', options: [
-        { value: 'feishu', label: '国内 (feishu.cn)' },
-        { value: 'lark', label: '海外 (larksuite.com)' },
+      { key: 'domain', label: 'Deployment Region', type: 'select', options: [
+        { value: 'feishu', label: 'China (feishu.cn)' },
+        { value: 'lark', label: 'International (larksuite.com)' },
       ]},
-      { key: 'requireMention', label: '需要 @提及', type: 'select', options: [
-        { value: 'true', label: '是' },
-        { value: 'false', label: '否' },
+      { key: 'requireMention', label: 'Require @Mention', type: 'select', options: [
+        { value: 'true', label: 'Yes' },
+        { value: 'false', label: 'No' },
       ]},
     ],
-    helpText: '从飞书开放平台获取凭证，Chat ID 可从群聊设置中获取',
+    helpText: 'Get credentials from Feishu Open Platform, Chat ID can be found in group settings',
   },
   imessage: {
     name: 'iMessage',
     icon: <Apple size={20} />,
     color: 'text-green-400',
     fields: [
-      { key: 'dmPolicy', label: '私聊策略', type: 'select', options: [
-        { value: 'pairing', label: '配对模式' },
-        { value: 'open', label: '开放模式' },
-        { value: 'disabled', label: '禁用' },
+      { key: 'dmPolicy', label: 'DM Policy', type: 'select', options: [
+        { value: 'pairing', label: 'Pairing Mode' },
+        { value: 'open', label: 'Open Mode' },
+        { value: 'disabled', label: 'Disabled' },
       ]},
-      { key: 'groupPolicy', label: '群组策略', type: 'select', options: [
-        { value: 'allowlist', label: '白名单' },
-        { value: 'open', label: '开放' },
-        { value: 'disabled', label: '禁用' },
+      { key: 'groupPolicy', label: 'Group Policy', type: 'select', options: [
+        { value: 'allowlist', label: 'Allowlist' },
+        { value: 'open', label: 'Open' },
+        { value: 'disabled', label: 'Disabled' },
       ]},
     ],
-    helpText: '仅支持 macOS，需要授权消息访问权限',
+    helpText: 'macOS only, requires Messages access permission',
   },
   whatsapp: {
     name: 'WhatsApp',
     icon: <MessageCircle size={20} />,
     color: 'text-green-500',
     fields: [
-      { key: 'dmPolicy', label: '私聊策略', type: 'select', options: [
-        { value: 'pairing', label: '配对模式' },
-        { value: 'open', label: '开放模式' },
-        { value: 'disabled', label: '禁用' },
+      { key: 'dmPolicy', label: 'DM Policy', type: 'select', options: [
+        { value: 'pairing', label: 'Pairing Mode' },
+        { value: 'open', label: 'Open Mode' },
+        { value: 'disabled', label: 'Disabled' },
       ]},
-      { key: 'groupPolicy', label: '群组策略', type: 'select', options: [
-        { value: 'allowlist', label: '白名单' },
-        { value: 'open', label: '开放' },
-        { value: 'disabled', label: '禁用' },
+      { key: 'groupPolicy', label: 'Group Policy', type: 'select', options: [
+        { value: 'allowlist', label: 'Allowlist' },
+        { value: 'open', label: 'Open' },
+        { value: 'disabled', label: 'Disabled' },
       ]},
     ],
-    helpText: '需要扫描二维码登录，运行: openclaw channels login --channel whatsapp',
+    helpText: 'Requires QR code scan to login, run: openclaw channels login --channel whatsapp',
   },
   wechat: {
-    name: '微信',
+    name: 'WeChat',
     icon: <MessageSquare size={20} />,
     color: 'text-green-600',
     fields: [
-      { key: 'appId', label: 'App ID', type: 'text', placeholder: '微信开放平台 App ID' },
-      { key: 'appSecret', label: 'App Secret', type: 'password', placeholder: '微信开放平台 App Secret' },
+      { key: 'appId', label: 'App ID', type: 'text', placeholder: 'WeChat Open Platform App ID' },
+      { key: 'appSecret', label: 'App Secret', type: 'password', placeholder: 'WeChat Open Platform App Secret' },
     ],
-    helpText: '微信公众号/企业微信配置',
+    helpText: 'WeChat Official Account/Enterprise WeChat configuration',
   },
   dingtalk: {
-    name: '钉钉',
+    name: 'DingTalk',
     icon: <Bell size={20} />,
     color: 'text-blue-600',
     fields: [
-      { key: 'appKey', label: 'App Key', type: 'text', placeholder: '钉钉应用 App Key' },
-      { key: 'appSecret', label: 'App Secret', type: 'password', placeholder: '钉钉应用 App Secret' },
+      { key: 'appKey', label: 'App Key', type: 'text', placeholder: 'DingTalk App Key' },
+      { key: 'appSecret', label: 'App Secret', type: 'password', placeholder: 'DingTalk App Secret' },
     ],
-    helpText: '从钉钉开放平台获取',
+    helpText: 'Get from DingTalk Open Platform',
   },
 };
 
@@ -204,12 +204,12 @@ export function Channels() {
   const [clearing, setClearing] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   
-  // 飞书插件状态
+  // Feishu plugin status
   const [feishuPluginStatus, setFeishuPluginStatus] = useState<FeishuPluginStatus | null>(null);
   const [feishuPluginLoading, setFeishuPluginLoading] = useState(false);
   const [feishuPluginInstalling, setFeishuPluginInstalling] = useState(false);
-  
-  // 跟踪哪些密码字段显示明文
+
+  // Track which password fields are visible
   const [visiblePasswords, setVisiblePasswords] = useState<Set<string>>(new Set());
 
   const togglePasswordVisibility = (fieldKey: string) => {
@@ -224,65 +224,65 @@ export function Channels() {
     });
   };
   
-  // 检查飞书插件状态
+  // Check Feishu plugin status
   const checkFeishuPlugin = async () => {
     setFeishuPluginLoading(true);
     try {
       const status = await invoke<FeishuPluginStatus>('check_feishu_plugin');
       setFeishuPluginStatus(status);
     } catch (e) {
-      console.error('检查飞书插件失败:', e);
+      console.error('Failed to check Feishu plugin:', e);
       setFeishuPluginStatus({ installed: false, version: null, plugin_name: null });
     } finally {
       setFeishuPluginLoading(false);
     }
   };
   
-  // 安装飞书插件
+  // Install Feishu plugin
   const handleInstallFeishuPlugin = async () => {
     setFeishuPluginInstalling(true);
     try {
       const result = await invoke<string>('install_feishu_plugin');
       alert(result);
-      // 刷新插件状态
+      // Refresh plugin status
       await checkFeishuPlugin();
     } catch (e) {
-      alert('安装失败: ' + e);
+      alert('Installation failed: ' + e);
     } finally {
       setFeishuPluginInstalling(false);
     }
   };
   
-  // 显示清空确认
+  // Show clear confirmation
   const handleShowClearConfirm = () => {
     if (!selectedChannel) return;
     setShowClearConfirm(true);
   };
-  
-  // 执行清空渠道配置
+
+  // Execute clear channel config
   const handleClearConfig = async () => {
     if (!selectedChannel) return;
-    
+
     const channel = channels.find((c) => c.id === selectedChannel);
     const channelName = channel ? channelInfo[channel.channel_type]?.name || channel.channel_type : selectedChannel;
-    
+
     setShowClearConfirm(false);
     setClearing(true);
     try {
       await invoke('clear_channel_config', { channelId: selectedChannel });
-      // 清空表单
+      // Clear form
       setConfigForm({});
-      // 刷新列表
+      // Refresh list
       await fetchChannels();
       setTestResult({
         success: true,
-        message: `${channelName} 配置已清空`,
+        message: `${channelName} configuration cleared`,
         error: null,
       });
     } catch (e) {
       setTestResult({
         success: false,
-        message: '清空失败',
+        message: 'Clear failed',
         error: String(e),
       });
     } finally {
@@ -290,13 +290,13 @@ export function Channels() {
     }
   };
   
-  // 快速测试
+  // Quick test
   const handleQuickTest = async () => {
     if (!selectedChannel) return;
-    
+
     setTesting(true);
     setTestResult(null);
-    
+
     try {
       const result = await invoke<{
         success: boolean;
@@ -304,7 +304,7 @@ export function Channels() {
         message: string;
         error: string | null;
       }>('test_channel', { channelType: selectedChannel });
-      
+
       setTestResult({
         success: result.success,
         message: result.message,
@@ -313,7 +313,7 @@ export function Channels() {
     } catch (e) {
       setTestResult({
         success: false,
-        message: '测试失败',
+        message: 'Test failed',
         error: String(e),
       });
     } finally {
@@ -321,46 +321,46 @@ export function Channels() {
     }
   };
   
-  // WhatsApp 扫码登录
+  // WhatsApp QR code login
   const handleWhatsAppLogin = async () => {
     setLoginLoading(true);
     try {
-      // 调用后端命令启动 WhatsApp 登录
+      // Call backend command to start WhatsApp login
       await invoke('start_channel_login', { channelType: 'whatsapp' });
-      
-      // 开始轮询检查登录状态
+
+      // Start polling to check login status
       const pollInterval = setInterval(async () => {
         try {
           const result = await invoke<{
             success: boolean;
             message: string;
           }>('test_channel', { channelType: 'whatsapp' });
-          
+
           if (result.success) {
             clearInterval(pollInterval);
             setLoginLoading(false);
-            // 刷新渠道列表
+            // Refresh channel list
             await fetchChannels();
             setTestResult({
               success: true,
-              message: 'WhatsApp 登录成功！',
+              message: 'WhatsApp login successful!',
               error: null,
             });
           }
         } catch {
-          // 继续轮询
+          // Continue polling
         }
-      }, 3000); // 每3秒检查一次
-      
-      // 60秒后停止轮询
+      }, 3000); // Check every 3 seconds
+
+      // Stop polling after 60 seconds
       setTimeout(() => {
         clearInterval(pollInterval);
         setLoginLoading(false);
       }, 60000);
-      
-      alert('请在弹出的终端窗口中扫描二维码完成登录\n\n登录成功后界面会自动更新');
+
+      alert('Please scan the QR code in the popup terminal window to complete login\n\nThe interface will update automatically after successful login');
     } catch (e) {
-      alert('启动登录失败: ' + e);
+      alert('Failed to start login: ' + e);
       setLoginLoading(false);
     }
   };
@@ -371,7 +371,7 @@ export function Channels() {
       setChannels(result);
       return result;
     } catch (e) {
-      console.error('获取渠道配置失败:', e);
+      console.error('Failed to get channel config:', e);
       return [];
     }
   };
@@ -381,7 +381,7 @@ export function Channels() {
       try {
         const result = await fetchChannels();
         
-        // 自动选择第一个已配置的渠道
+        // Auto-select the first configured channel
         const configured = result.find((c) => c.enabled);
         if (configured) {
           handleChannelSelect(configured.id, result);
@@ -395,7 +395,7 @@ export function Channels() {
 
   const handleChannelSelect = (channelId: string, channelList?: ChannelConfig[]) => {
     setSelectedChannel(channelId);
-    setTestResult(null); // 清除测试结果
+    setTestResult(null); // Clear test result
     
     const list = channelList || channels;
     const channel = list.find((c) => c.id === channelId);
@@ -403,7 +403,7 @@ export function Channels() {
     if (channel) {
       const form: Record<string, string> = {};
       Object.entries(channel.config).forEach(([key, value]) => {
-        // 处理布尔值
+        // Handle boolean values
         if (typeof value === 'boolean') {
           form[key] = value ? 'true' : 'false';
         } else {
@@ -412,7 +412,7 @@ export function Channels() {
       });
       setConfigForm(form);
       
-      // 如果选择的是飞书渠道，检查插件状态
+      // If Feishu channel is selected, check plugin status
       if (channel.channel_type === 'feishu') {
         checkFeishuPlugin();
       }
@@ -429,7 +429,7 @@ export function Channels() {
       const channel = channels.find((c) => c.id === selectedChannel);
       if (!channel) return;
       
-      // 转换表单值
+      // Convert form values
       const config: Record<string, unknown> = {};
       Object.entries(configForm).forEach(([key, value]) => {
         if (value === 'true') {
@@ -448,13 +448,13 @@ export function Channels() {
         },
       });
       
-      // 刷新列表
+      // Refresh list
       await fetchChannels();
-      
-      alert('渠道配置已保存！');
+
+      alert('Channel configuration saved!');
     } catch (e) {
-      console.error('保存失败:', e);
-      alert('保存失败: ' + e);
+      console.error('Save failed:', e);
+      alert('Save failed: ' + e);
     } finally {
       setSaving(false);
     }
@@ -463,12 +463,12 @@ export function Channels() {
   const currentChannel = channels.find((c) => c.id === selectedChannel);
   const currentInfo = currentChannel ? channelInfo[currentChannel.channel_type] : null;
 
-  // 检查渠道是否有有效配置
+  // Check if channel has valid configuration
   const hasValidConfig = (channel: ChannelConfig) => {
     const info = channelInfo[channel.channel_type];
     if (!info) return channel.enabled;
-    
-    // 检查是否有必填字段已填写
+
+    // Check if required fields are filled
     const requiredFields = info.fields.filter((f) => f.required);
     if (requiredFields.length === 0) return channel.enabled;
     
@@ -490,10 +490,10 @@ export function Channels() {
     <div className="h-full overflow-y-auto scroll-container pr-2">
       <div className="max-w-4xl">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* 渠道列表 */}
+          {/* Channel list */}
           <div className="md:col-span-1 space-y-2">
             <h3 className="text-sm font-medium text-gray-400 mb-3 px-1">
-              消息渠道
+              Message Channels
             </h3>
             {channels.map((channel) => {
               const info = channelInfo[channel.channel_type] || {
@@ -537,12 +537,12 @@ export function Channels() {
                       {isConfigured ? (
                         <>
                           <Check size={12} className="text-green-400" />
-                          <span className="text-xs text-green-400">已配置</span>
+                          <span className="text-xs text-green-400">Configured</span>
                         </>
                       ) : (
                         <>
                           <X size={12} className="text-gray-500" />
-                          <span className="text-xs text-gray-500">未配置</span>
+                          <span className="text-xs text-gray-500">Not Configured</span>
                         </>
                       )}
                     </div>
@@ -556,7 +556,7 @@ export function Channels() {
             })}
           </div>
 
-          {/* 配置面板 */}
+          {/* Configuration panel */}
           <div className="md:col-span-2">
             {currentChannel && currentInfo ? (
               <motion.div
@@ -571,7 +571,7 @@ export function Channels() {
                   </div>
                   <div>
                     <h3 className="text-lg font-semibold text-white">
-                      配置 {currentInfo.name}
+                      Configure {currentInfo.name}
                     </h3>
                     {currentInfo.helpText && (
                       <p className="text-xs text-gray-500">{currentInfo.helpText}</p>
@@ -579,19 +579,19 @@ export function Channels() {
                   </div>
                 </div>
 
-                {/* 飞书插件状态提示 */}
+                {/* Feishu plugin status hint */}
                 {currentChannel.channel_type === 'feishu' && (
                   <div className="mb-4">
                     {feishuPluginLoading ? (
                       <div className="p-4 bg-dark-600 rounded-xl border border-dark-500 flex items-center gap-3">
                         <Loader2 size={20} className="animate-spin text-gray-400" />
-                        <span className="text-gray-400">正在检查飞书插件状态...</span>
+                        <span className="text-gray-400">Checking Feishu plugin status...</span>
                       </div>
                     ) : feishuPluginStatus?.installed ? (
                       <div className="p-4 bg-green-500/10 rounded-xl border border-green-500/30 flex items-center gap-3">
                         <Package size={20} className="text-green-400" />
                         <div className="flex-1">
-                          <p className="text-green-400 font-medium">飞书插件已安装</p>
+                          <p className="text-green-400 font-medium">Feishu plugin installed</p>
                           <p className="text-xs text-gray-400 mt-0.5">
                             {feishuPluginStatus.plugin_name || '@m1heng-clawd/feishu'}
                             {feishuPluginStatus.version && ` v${feishuPluginStatus.version}`}
@@ -604,9 +604,9 @@ export function Channels() {
                         <div className="flex items-start gap-3">
                           <AlertTriangle size={20} className="text-amber-400 mt-0.5" />
                           <div className="flex-1">
-                            <p className="text-amber-400 font-medium">需要安装飞书插件</p>
+                            <p className="text-amber-400 font-medium">Feishu plugin installation required</p>
                             <p className="text-xs text-gray-400 mt-1">
-                              飞书渠道需要先安装 @m1heng-clawd/feishu 插件才能使用。
+                              Feishu channel requires the @m1heng-clawd/feishu plugin to be installed first.
                             </p>
                             <div className="mt-3 flex flex-wrap gap-2">
                               <button
@@ -619,18 +619,18 @@ export function Channels() {
                                 ) : (
                                   <Download size={14} />
                                 )}
-                                {feishuPluginInstalling ? '安装中...' : '一键安装插件'}
+                                {feishuPluginInstalling ? 'Installing...' : 'One-click Install Plugin'}
                               </button>
                               <button
                                 onClick={checkFeishuPlugin}
                                 disabled={feishuPluginLoading}
                                 className="btn-secondary flex items-center gap-2 text-sm py-2"
                               >
-                                刷新状态
+                                Refresh Status
                               </button>
                             </div>
                             <p className="text-xs text-gray-500 mt-2">
-                              或手动执行: <code className="px-1.5 py-0.5 bg-dark-600 rounded text-gray-400">openclaw plugins install @m1heng-clawd/feishu</code>
+                              Or run manually: <code className="px-1.5 py-0.5 bg-dark-600 rounded text-gray-400">openclaw plugins install @m1heng-clawd/feishu</code>
                             </p>
                           </div>
                         </div>
@@ -658,7 +658,7 @@ export function Channels() {
                           }
                           className="input-base"
                         >
-                          <option value="">请选择...</option>
+                          <option value="">Please select...</option>
                           {field.options?.map((opt) => (
                             <option key={opt.value} value={opt.value}>
                               {opt.label}
@@ -680,7 +680,7 @@ export function Channels() {
                             type="button"
                             onClick={() => togglePasswordVisibility(field.key)}
                             className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white transition-colors"
-                            title={visiblePasswords.has(field.key) ? '隐藏' : '显示'}
+                            title={visiblePasswords.has(field.key) ? 'Hide' : 'Show'}
                           >
                             {visiblePasswords.has(field.key) ? (
                               <EyeOff size={18} />
@@ -703,14 +703,14 @@ export function Channels() {
                     </div>
                   ))}
 
-                  {/* WhatsApp 特殊处理：扫码登录按钮 */}
+                  {/* WhatsApp special handling: QR code login button */}
                   {currentChannel.channel_type === 'whatsapp' && (
                     <div className="p-4 bg-green-500/10 rounded-xl border border-green-500/30">
                       <div className="flex items-center gap-3 mb-3">
                         <QrCode size={24} className="text-green-400" />
                         <div>
-                          <p className="text-white font-medium">扫码登录</p>
-                          <p className="text-xs text-gray-400">WhatsApp 需要扫描二维码登录</p>
+                          <p className="text-white font-medium">QR Code Login</p>
+                          <p className="text-xs text-gray-400">WhatsApp requires QR code scan to login</p>
                         </div>
                       </div>
                       <div className="flex gap-2">
@@ -724,7 +724,7 @@ export function Channels() {
                           ) : (
                             <QrCode size={16} />
                           )}
-                          {loginLoading ? '等待登录...' : '启动扫码登录'}
+                          {loginLoading ? 'Waiting for login...' : 'Start QR Code Login'}
                         </button>
                         <button
                           onClick={async () => {
@@ -733,7 +733,7 @@ export function Channels() {
                           }}
                           disabled={testing}
                           className="btn-secondary flex items-center justify-center gap-2 px-4"
-                          title="刷新状态"
+                          title="Refresh Status"
                         >
                           {testing ? (
                             <Loader2 size={16} className="animate-spin" />
@@ -743,12 +743,12 @@ export function Channels() {
                         </button>
                       </div>
                       <p className="text-xs text-gray-500 mt-2 text-center">
-                        登录成功后点击右侧按钮刷新状态，或运行: openclaw channels login --channel whatsapp
+                        After successful login, click the button on the right to refresh status, or run: openclaw channels login --channel whatsapp
                       </p>
                     </div>
                   )}
 
-                  {/* 操作按钮 */}
+                  {/* Action buttons */}
                   <div className="pt-4 border-t border-dark-500 flex flex-wrap items-center gap-3">
                     <button
                       onClick={handleSave}
@@ -760,10 +760,10 @@ export function Channels() {
                       ) : (
                         <Check size={16} />
                       )}
-                      保存配置
+                      Save Configuration
                     </button>
-                    
-                    {/* 快速测试按钮 */}
+
+                    {/* Quick test button */}
                     <button
                       onClick={handleQuickTest}
                       disabled={testing}
@@ -774,10 +774,10 @@ export function Channels() {
                       ) : (
                         <Play size={16} />
                       )}
-                      快速测试
+                      Quick Test
                     </button>
-                    
-                    {/* 清空配置按钮 */}
+
+                    {/* Clear config button */}
                     {!showClearConfirm ? (
                       <button
                         onClick={handleShowClearConfirm}
@@ -789,28 +789,28 @@ export function Channels() {
                         ) : (
                           <Trash2 size={16} />
                         )}
-                        清空配置
+                        Clear Configuration
                       </button>
                     ) : (
                       <div className="flex items-center gap-2 px-3 py-1.5 bg-red-500/20 rounded-lg border border-red-500/50">
-                        <span className="text-sm text-red-300">确定清空？</span>
+                        <span className="text-sm text-red-300">Confirm clear?</span>
                         <button
                           onClick={handleClearConfig}
                           className="px-2 py-1 text-xs bg-red-500 text-white rounded hover:bg-red-600 transition-colors"
                         >
-                          确定
+                          Confirm
                         </button>
                         <button
                           onClick={() => setShowClearConfirm(false)}
                           className="px-2 py-1 text-xs bg-dark-600 text-gray-300 rounded hover:bg-dark-500 transition-colors"
                         >
-                          取消
+                          Cancel
                         </button>
                       </div>
                     )}
                   </div>
                   
-                  {/* 测试结果显示 */}
+                  {/* Test result display */}
                   {testResult && (
                     <motion.div
                       initial={{ opacity: 0, y: 10 }}
@@ -830,7 +830,7 @@ export function Channels() {
                           'font-medium',
                           testResult.success ? 'text-green-400' : 'text-red-400'
                         )}>
-                          {testResult.success ? '测试成功' : '测试失败'}
+                          {testResult.success ? 'Test successful' : 'Test failed'}
                         </p>
                         <p className="text-sm text-gray-400 mt-1">{testResult.message}</p>
                         {testResult.error && (
@@ -845,7 +845,7 @@ export function Channels() {
               </motion.div>
             ) : (
               <div className="h-full flex items-center justify-center text-gray-500">
-                <p>选择左侧渠道进行配置</p>
+                <p>Select a channel on the left to configure</p>
               </div>
             )}
           </div>

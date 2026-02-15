@@ -1,15 +1,15 @@
 import { invoke } from '@tauri-apps/api/core';
 import { apiLogger } from './logger';
 
-// 检查是否在 Tauri 环境中运行
+// Check if running in Tauri environment
 export function isTauri(): boolean {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 }
 
-// 带日志的 invoke 封装（自动检查 Tauri 环境）
+// invoke wrapper with logging (auto checks Tauri environment)
 async function invokeWithLog<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
   if (!isTauri()) {
-    throw new Error('不在 Tauri 环境中运行，请通过 Tauri 应用启动');
+    throw new Error('Not running in Tauri environment, please start via Tauri application');
   }
   apiLogger.apiCall(cmd, args);
   try {
@@ -22,7 +22,7 @@ async function invokeWithLog<T>(cmd: string, args?: Record<string, unknown>): Pr
   }
 }
 
-// 服务状态
+// Service status
 export interface ServiceStatus {
   running: boolean;
   pid: number | null;
@@ -32,7 +32,7 @@ export interface ServiceStatus {
   cpu_percent: number | null;
 }
 
-// 系统信息
+// System information
 export interface SystemInfo {
   os: string;
   os_version: string;
@@ -43,7 +43,7 @@ export interface SystemInfo {
   config_dir: string;
 }
 
-// AI Provider 选项（旧版兼容）
+// AI Provider option (legacy compatibility)
 export interface AIProviderOption {
   id: string;
   name: string;
@@ -60,7 +60,7 @@ export interface AIModelOption {
   recommended: boolean;
 }
 
-// 官方 Provider 预设
+// Official Provider preset
 export interface OfficialProvider {
   id: string;
   name: string;
@@ -81,7 +81,7 @@ export interface SuggestedModel {
   recommended: boolean;
 }
 
-// 已配置的 Provider
+// Configured Provider
 export interface ConfiguredProvider {
   name: string;
   base_url: string;
@@ -100,14 +100,14 @@ export interface ConfiguredModel {
   is_primary: boolean;
 }
 
-// AI 配置概览
+// AI configuration overview
 export interface AIConfigOverview {
   primary_model: string | null;
   configured_providers: ConfiguredProvider[];
   available_models: string[];
 }
 
-// 模型配置
+// Model configuration
 export interface ModelConfig {
   id: string;
   name: string;
@@ -119,7 +119,7 @@ export interface ModelConfig {
   cost: { input: number; output: number; cache_read: number; cache_write: number } | null;
 }
 
-// 渠道配置
+// Channel configuration
 export interface ChannelConfig {
   id: string;
   channel_type: string;
@@ -127,7 +127,7 @@ export interface ChannelConfig {
   config: Record<string, unknown>;
 }
 
-// 诊断结果
+// Diagnostic result
 export interface DiagnosticResult {
   name: string;
   passed: boolean;
@@ -135,7 +135,7 @@ export interface DiagnosticResult {
   suggestion: string | null;
 }
 
-// AI 测试结果
+// AI test result
 export interface AITestResult {
   success: boolean;
   provider: string;
@@ -145,31 +145,48 @@ export interface AITestResult {
   latency_ms: number | null;
 }
 
-// API 封装（带日志）
+// MCP Configuration
+export interface MCPConfig {
+  command?: string;
+  args?: string[];
+  env?: Record<string, string>;
+  url?: string;
+  enabled: boolean;
+}
+
+// Skill
+export interface Skill {
+  id: string;
+  name: string;
+  description: string | null;
+  path: string;
+}
+
+// API wrapper (with logging)
 export const api = {
-  // 服务管理
+  // Service management
   getServiceStatus: () => invokeWithLog<ServiceStatus>('get_service_status'),
   startService: () => invokeWithLog<string>('start_service'),
   stopService: () => invokeWithLog<string>('stop_service'),
   restartService: () => invokeWithLog<string>('restart_service'),
   getLogs: (lines?: number) => invokeWithLog<string[]>('get_logs', { lines }),
 
-  // 系统信息
+  // System information
   getSystemInfo: () => invokeWithLog<SystemInfo>('get_system_info'),
   checkOpenclawInstalled: () => invokeWithLog<boolean>('check_openclaw_installed'),
   getOpenclawVersion: () => invokeWithLog<string | null>('get_openclaw_version'),
 
-  // 配置管理
+  // Configuration management
   getConfig: () => invokeWithLog<unknown>('get_config'),
   saveConfig: (config: unknown) => invokeWithLog<string>('save_config', { config }),
   getEnvValue: (key: string) => invokeWithLog<string | null>('get_env_value', { key }),
   saveEnvValue: (key: string, value: string) =>
     invokeWithLog<string>('save_env_value', { key, value }),
 
-  // AI Provider（旧版兼容）
+  // AI Provider (legacy compatibility)
   getAIProviders: () => invokeWithLog<AIProviderOption[]>('get_ai_providers'),
 
-  // AI 配置（新版）
+  // AI Configuration (new version)
   getOfficialProviders: () => invokeWithLog<OfficialProvider[]>('get_official_providers'),
   getAIConfig: () => invokeWithLog<AIConfigOverview>('get_ai_config'),
   saveProvider: (
@@ -195,12 +212,41 @@ export const api = {
   removeAvailableModel: (modelId: string) =>
     invokeWithLog<string>('remove_available_model', { modelId }),
 
-  // 渠道
+  // Channels
   getChannelsConfig: () => invokeWithLog<ChannelConfig[]>('get_channels_config'),
   saveChannelConfig: (channel: ChannelConfig) =>
     invokeWithLog<string>('save_channel_config', { channel }),
 
-  // 诊断测试
+  // MCP
+  getMCPConfig: () => invokeWithLog<Record<string, MCPConfig>>('get_mcp_config'),
+  saveMCPConfig: (name: string, config: MCPConfig | null) =>
+    invokeWithLog<string>('save_mcp_config', { name, config }),
+  installMCPFromGit: (url: string) =>
+    invokeWithLog<string>('install_mcp_from_git', { url }),
+  uninstallMCP: (name: string) =>
+    invokeWithLog<string>('uninstall_mcp', { name }),
+  checkMcporterInstalled: () =>
+    invokeWithLog<boolean>('check_mcporter_installed'),
+  installMcporter: () =>
+    invokeWithLog<string>('install_mcporter'),
+  uninstallMcporter: () =>
+    invokeWithLog<string>('uninstall_mcporter'),
+  installMCPPlugin: (url: string) =>
+    invokeWithLog<string>('install_mcp_plugin', { url }),
+  openclawConfigSet: (key: string, value: string) =>
+    invokeWithLog<string>('openclaw_config_set', { key, value }),
+  testMCPServer: (serverType: string, target: string, command?: string, args?: string[]) =>
+    invokeWithLog<string>('test_mcp_server', { serverType, target, command: command || null, args: args || null }),
+
+  // Skills
+  getSkills: () => invokeWithLog<Skill[]>('get_skills'),
+  checkClawhubInstalled: () => invokeWithLog<boolean>('check_clawhub_installed'),
+  installClawhub: () => invokeWithLog<string>('install_clawhub'),
+  uninstallClawhub: () => invokeWithLog<string>('uninstall_clawhub'),
+  installSkill: (name: string) => invokeWithLog<string>('install_skill', { skillName: name }),
+  uninstallSkill: (id: string) => invokeWithLog<string>('uninstall_skill', { skillId: id }),
+
+  // Diagnostics and testing
   runDoctor: () => invokeWithLog<DiagnosticResult[]>('run_doctor'),
   testAIConnection: () => invokeWithLog<AITestResult>('test_ai_connection'),
   testChannel: (channelType: string) =>

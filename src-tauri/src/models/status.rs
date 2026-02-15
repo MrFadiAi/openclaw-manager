@@ -1,19 +1,19 @@
 use serde::{Deserialize, Serialize};
 
-/// 服务运行状态
+/// Service running status
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ServiceStatus {
-    /// 是否正在运行
+    /// Whether it is running
     pub running: bool,
-    /// 进程 ID
+    /// Process ID
     pub pid: Option<u32>,
-    /// 监听端口
+    /// Listening port
     pub port: u16,
-    /// 运行时长（秒）
+    /// Uptime (seconds)
     pub uptime_seconds: Option<u64>,
-    /// 内存使用（MB）
+    /// Memory usage (MB)
     pub memory_mb: Option<f64>,
-    /// CPU 使用率
+    /// CPU usage percentage
     pub cpu_percent: Option<f64>,
 }
 
@@ -30,64 +30,64 @@ impl Default for ServiceStatus {
     }
 }
 
-/// 系统信息
+/// System information
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SystemInfo {
-    /// 操作系统类型
+    /// Operating system type
     pub os: String,
-    /// 操作系统版本
+    /// Operating system version
     pub os_version: String,
-    /// 系统架构
+    /// System architecture
     pub arch: String,
-    /// OpenClaw 是否已安装
+    /// Whether OpenClaw is installed
     pub openclaw_installed: bool,
-    /// OpenClaw 版本
+    /// OpenClaw version
     pub openclaw_version: Option<String>,
-    /// Node.js 版本
+    /// Node.js version
     pub node_version: Option<String>,
-    /// 配置目录
+    /// Configuration directory
     pub config_dir: String,
 }
 
-/// 诊断结果
+/// Diagnostic result
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DiagnosticResult {
-    /// 检查项名称
+    /// Check item name
     pub name: String,
-    /// 是否通过
+    /// Whether passed
     pub passed: bool,
-    /// 详细信息
+    /// Detailed information
     pub message: String,
-    /// 修复建议
+    /// Fix suggestion
     pub suggestion: Option<String>,
 }
 
-/// AI 连接测试结果
+/// AI connection test result
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AITestResult {
-    /// 是否成功
+    /// Whether successful
     pub success: bool,
-    /// 提供商名称
+    /// Provider name
     pub provider: String,
-    /// 模型名称
+    /// Model name
     pub model: String,
-    /// 响应内容
+    /// Response content
     pub response: Option<String>,
-    /// 错误信息
+    /// Error message
     pub error: Option<String>,
-    /// 响应时间（毫秒）
+    /// Response time (milliseconds)
     pub latency_ms: Option<u64>,
 }
 
-/// 渠道测试结果
+/// Channel test result
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChannelTestResult {
-    /// 是否成功
+    /// Whether successful
     pub success: bool,
-    /// 渠道名称
+    /// Channel name
     pub channel: String,
-    /// 消息
+    /// Message
     pub message: String,
-    /// 错误信息
+    /// Error message
     pub error: Option<String>,
 }

@@ -18,26 +18,26 @@ export function ServiceManager() {
   const [autoRefresh, setAutoRefresh] = useState(true);
   const logsEndRef = useRef<HTMLDivElement>(null);
 
-  serviceLogger.debug('ServiceManager 组件渲染');
+  serviceLogger.debug('ServiceManager component rendered');
 
   const fetchLogs = async () => {
     try {
       const result = await invoke<string[]>('get_logs', { lines: 100 });
       setLogs(result);
-      serviceLogger.debug(`获取到 ${result.length} 行日志`);
+      serviceLogger.debug(`Fetched ${result.length} log lines`);
     } catch (e) {
-      serviceLogger.error('获取日志失败', e);
+      serviceLogger.error('Failed to fetch logs', e);
     }
   };
 
   useEffect(() => {
-    serviceLogger.info('ServiceManager 组件挂载');
+    serviceLogger.info('ServiceManager component mounted');
     fetchLogs();
     if (autoRefresh) {
-      serviceLogger.debug('启动日志自动刷新 (间隔: 2秒)');
+      serviceLogger.debug('Starting auto refresh (interval: 2s)');
       const interval = setInterval(fetchLogs, 2000);
       return () => {
-        serviceLogger.debug('停止日志自动刷新');
+        serviceLogger.debug('Stopping auto refresh');
         clearInterval(interval);
       };
     }
@@ -50,16 +50,16 @@ export function ServiceManager() {
   }, [logs]);
 
   const handleAction = async (action: 'start' | 'stop' | 'restart') => {
-    serviceLogger.action(`服务操作: ${action}`);
-    serviceLogger.info(`正在执行: ${action}_service`);
+    serviceLogger.action(`Service action: ${action}`);
+    serviceLogger.info(`Executing: ${action}_service`);
     setActionLoading(action);
     try {
       const result = await invoke(`${action}_service`);
-      serviceLogger.info(`✅ ${action} 操作成功`, result);
+      serviceLogger.info(`✅ ${action} succeeded`, result);
       await fetchLogs();
     } catch (e) {
-      serviceLogger.error(`❌ ${action} 操作失败`, e);
-      alert(`操作失败: ${e}`);
+      serviceLogger.error(`❌ ${action} failed`, e);
+      alert(`Operation failed: ${e}`);
     } finally {
       setActionLoading(null);
     }
@@ -80,7 +80,7 @@ export function ServiceManager() {
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
-      {/* 操作按钮栏 */}
+      {/* Action buttons bar */}
       <div className="flex items-center gap-4 mb-4">
         <div className="flex items-center gap-2">
           <button
@@ -97,7 +97,7 @@ export function ServiceManager() {
             ) : (
               <Play size={16} />
             )}
-            启动
+            Start
           </button>
 
           <button
@@ -114,7 +114,7 @@ export function ServiceManager() {
             ) : (
               <Square size={16} />
             )}
-            停止
+            Stop
           </button>
 
           <button
@@ -131,7 +131,7 @@ export function ServiceManager() {
             ) : (
               <RotateCcw size={16} />
             )}
-            重启
+            Restart
           </button>
         </div>
 
@@ -145,7 +145,7 @@ export function ServiceManager() {
               onChange={(e) => setAutoRefresh(e.target.checked)}
               className="w-4 h-4 rounded border-dark-500 bg-dark-600 text-claw-500 focus:ring-claw-500"
             />
-            自动刷新
+            Auto refresh
           </label>
 
           <button
@@ -157,9 +157,9 @@ export function ServiceManager() {
         </div>
       </div>
 
-      {/* 日志查看器 */}
+      {/* Log viewer */}
       <div className="flex-1 bg-dark-800 rounded-xl border border-dark-600 overflow-hidden flex flex-col">
-        {/* 日志标题栏 */}
+        {/* Log title bar */}
         <div className="flex items-center gap-2 px-4 py-2 bg-dark-700 border-b border-dark-600">
           <Terminal size={14} className="text-gray-500" />
           <span className="text-xs text-gray-400 font-medium">
@@ -167,17 +167,17 @@ export function ServiceManager() {
           </span>
           <div className="flex-1" />
           <span className="text-xs text-gray-500">
-            {logs.length} 行
+            {logs.length} lines
           </span>
         </div>
 
-        {/* 日志内容 */}
+        {/* Log content */}
         <div className="flex-1 overflow-y-auto p-4 font-mono text-xs leading-relaxed">
           {logs.length === 0 ? (
             <div className="h-full flex items-center justify-center text-gray-500">
               <div className="text-center">
                 <FileText size={32} className="mx-auto mb-2 opacity-50" />
-                <p>暂无日志</p>
+                <p>No logs available</p>
               </div>
             </div>
           ) : (

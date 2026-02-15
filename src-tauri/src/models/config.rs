@@ -1,121 +1,124 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-/// OpenClaw 完整配置 - 对应 openclaw.json 结构
+/// OpenClaw complete configuration - corresponds to openclaw.json structure
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct OpenClawConfig {
-    /// Agent 配置
+    /// Agent configuration
     #[serde(default)]
     pub agents: AgentsConfig,
-    /// 模型配置
+    /// Model configuration
     #[serde(default)]
     pub models: ModelsConfig,
-    /// 网关配置
+    /// Gateway configuration
     #[serde(default)]
     pub gateway: GatewayConfig,
-    /// 渠道配置
+    /// Channel configuration
     #[serde(default)]
     pub channels: HashMap<String, serde_json::Value>,
-    /// 插件配置
+    /// Plugin configuration
     #[serde(default)]
     pub plugins: PluginsConfig,
-    /// 元数据
+    /// MCP configuration
+    #[serde(default)]
+    pub mcp: HashMap<String, MCPConfig>,
+    /// Metadata
     #[serde(default)]
     pub meta: MetaConfig,
 }
 
-/// Agent 配置
+/// Agent configuration
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct AgentsConfig {
-    /// 默认配置
+    /// Default configuration
     #[serde(default)]
     pub defaults: AgentDefaults,
 }
 
-/// Agent 默认配置
+/// Agent default configuration
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct AgentDefaults {
-    /// 模型配置
+    /// Model configuration
     #[serde(default)]
     pub model: AgentModelConfig,
-    /// 可用模型列表 (provider/model -> {})
+    /// Available model list (provider/model -> {})
     #[serde(default)]
     pub models: HashMap<String, serde_json::Value>,
-    /// 压缩配置
+    /// Compression configuration
     #[serde(default)]
     pub compaction: Option<serde_json::Value>,
-    /// 上下文裁剪
+    /// Context pruning
     #[serde(rename = "contextPruning", default)]
     pub context_pruning: Option<serde_json::Value>,
-    /// 心跳配置
+    /// Heartbeat configuration
     #[serde(default)]
     pub heartbeat: Option<serde_json::Value>,
-    /// 最大并发数
+    /// Maximum concurrency
     #[serde(rename = "maxConcurrent", default)]
     pub max_concurrent: Option<u32>,
-    /// 子代理配置
+    /// Sub-agent configuration
     #[serde(default)]
     pub subagents: Option<serde_json::Value>,
 }
 
-/// Agent 模型配置
+/// Agent model configuration
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct AgentModelConfig {
-    /// 主模型 (格式: provider/model-id)
+    /// Primary model (format: provider/model-id)
     #[serde(default)]
     pub primary: Option<String>,
 }
 
-/// 模型配置
+/// Model configuration
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ModelsConfig {
-    /// Provider 配置映射
+    /// Provider configuration mapping
     #[serde(default)]
     pub providers: HashMap<String, ProviderConfig>,
 }
 
-/// Provider 配置
+/// Provider configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProviderConfig {
-    /// API 地址
+    /// API URL
     #[serde(rename = "baseUrl")]
     pub base_url: String,
     /// API Key
     #[serde(rename = "apiKey")]
     pub api_key: Option<String>,
-    /// 模型列表
+    /// Model list
     #[serde(default)]
     pub models: Vec<ModelConfig>,
 }
 
-/// 模型配置详情
+/// Model configuration details
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ModelConfig {
-    /// 模型 ID
+    /// Model ID
     pub id: String,
-    /// 显示名称
+    /// Display name
     pub name: String,
-    /// API 类型 (anthropic-messages / openai-completions)
+    /// API type (anthropic-messages / openai-completions)
     #[serde(default)]
     pub api: Option<String>,
-    /// 支持的输入类型
+    /// Supported input types
     #[serde(default)]
     pub input: Vec<String>,
-    /// 上下文窗口大小
+    /// Context window size
     #[serde(rename = "contextWindow", default)]
     pub context_window: Option<u32>,
-    /// 最大输出 Token
+    /// Maximum output tokens
     #[serde(rename = "maxTokens", default)]
     pub max_tokens: Option<u32>,
-    /// 是否支持推理模式
+    /// Whether reasoning mode is supported
     #[serde(default)]
     pub reasoning: Option<bool>,
-    /// 成本配置
+    /// Cost configuration
     #[serde(default)]
     pub cost: Option<ModelCostConfig>,
 }
 
-/// 模型成本配置
+/// Model cost configuration
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ModelCostConfig {
     #[serde(default)]
@@ -128,18 +131,18 @@ pub struct ModelCostConfig {
     pub cache_write: f64,
 }
 
-/// 网关配置
+/// Gateway configuration
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct GatewayConfig {
-    /// 模式：local 或 cloud
+    /// Mode: local or cloud
     #[serde(default)]
     pub mode: Option<String>,
-    /// 认证配置
+    /// Authentication configuration
     #[serde(default)]
     pub auth: Option<GatewayAuthConfig>,
 }
 
-/// 网关认证配置
+/// Gateway authentication configuration
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct GatewayAuthConfig {
     #[serde(default)]
@@ -148,7 +151,7 @@ pub struct GatewayAuthConfig {
     pub token: Option<String>,
 }
 
-/// 插件配置
+/// Plugin configuration
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct PluginsConfig {
     #[serde(default)]
@@ -159,7 +162,31 @@ pub struct PluginsConfig {
     pub installs: HashMap<String, serde_json::Value>,
 }
 
-/// 元数据配置
+/// MCP configuration (supports both stdio and HTTP modes)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MCPConfig {
+    /// Command to run (for stdio servers)
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub command: String,
+    /// Arguments (for stdio servers)
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub args: Vec<String>,
+    /// Environment variables
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub env: HashMap<String, String>,
+    /// URL (for HTTP/remote MCP servers)
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub url: String,
+    /// Whether enabled
+    #[serde(default = "default_mcp_enabled")]
+    pub enabled: bool,
+}
+
+fn default_mcp_enabled() -> bool {
+    true
+}
+
+/// Metadata configuration
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct MetaConfig {
     #[serde(rename = "lastTouchedAt", default)]
@@ -168,137 +195,137 @@ pub struct MetaConfig {
     pub last_touched_version: Option<String>,
 }
 
-// ============ 前端展示用数据结构 ============
+// ============ Data structures for frontend display ============
 
-/// 官方 Provider 预设（用于前端展示）
+/// Official Provider preset (for frontend display)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OfficialProvider {
-    /// Provider ID (用于配置中)
+    /// Provider ID (used in configuration)
     pub id: String,
-    /// 显示名称
+    /// Display name
     pub name: String,
-    /// 图标（emoji）
+    /// Icon (emoji)
     pub icon: String,
-    /// 官方 API 地址
+    /// Official API URL
     pub default_base_url: Option<String>,
-    /// API 类型
+    /// API type
     pub api_type: String,
-    /// 推荐模型列表
+    /// Recommended model list
     pub suggested_models: Vec<SuggestedModel>,
-    /// 是否需要 API Key
+    /// Whether API Key is required
     pub requires_api_key: bool,
-    /// 文档链接
+    /// Documentation URL
     pub docs_url: Option<String>,
 }
 
-/// 推荐模型
+/// Recommended model
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SuggestedModel {
-    /// 模型 ID
+    /// Model ID
     pub id: String,
-    /// 显示名称
+    /// Display name
     pub name: String,
-    /// 描述
+    /// Description
     pub description: Option<String>,
-    /// 上下文窗口
+    /// Context window
     pub context_window: Option<u32>,
-    /// 最大输出
+    /// Maximum output
     pub max_tokens: Option<u32>,
-    /// 是否推荐
+    /// Whether recommended
     pub recommended: bool,
 }
 
-/// 已配置的 Provider（从配置文件读取）
+/// Configured Provider (read from configuration file)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConfiguredProvider {
-    /// Provider 名称 (配置中的 key)
+    /// Provider name (key in configuration)
     pub name: String,
-    /// API 地址
+    /// API URL
     pub base_url: String,
-    /// API Key (脱敏显示)
+    /// API Key (masked for display)
     pub api_key_masked: Option<String>,
-    /// 是否有 API Key
+    /// Whether API Key exists
     pub has_api_key: bool,
-    /// 配置的模型列表
+    /// Configured model list
     pub models: Vec<ConfiguredModel>,
 }
 
-/// 已配置的模型
+/// Configured model
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConfiguredModel {
-    /// 完整模型 ID (provider/model-id)
+    /// Full model ID (provider/model-id)
     pub full_id: String,
-    /// 模型 ID
+    /// Model ID
     pub id: String,
-    /// 显示名称
+    /// Display name
     pub name: String,
-    /// API 类型
+    /// API type
     pub api_type: Option<String>,
-    /// 上下文窗口
+    /// Context window
     pub context_window: Option<u32>,
-    /// 最大输出
+    /// Maximum output
     pub max_tokens: Option<u32>,
-    /// 是否为主模型
+    /// Whether it is the primary model
     pub is_primary: bool,
 }
 
-/// AI 配置概览（返回给前端）
+/// AI configuration overview (returned to frontend)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AIConfigOverview {
-    /// 主模型
+    /// Primary model
     pub primary_model: Option<String>,
-    /// 已配置的 Provider 列表
+    /// Configured provider list
     pub configured_providers: Vec<ConfiguredProvider>,
-    /// 可用模型列表
+    /// Available model list
     pub available_models: Vec<String>,
 }
 
-// ============ 旧数据结构保持兼容 ============
+// ============ Legacy data structures for compatibility ============
 
-/// AI Provider 选项（用于前端展示）- 旧版兼容
+/// AI Provider option (for frontend display) - legacy compatibility
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AIProviderOption {
     /// Provider ID
     pub id: String,
-    /// 显示名称
+    /// Display name
     pub name: String,
-    /// 图标（emoji）
+    /// Icon (emoji)
     pub icon: String,
-    /// 官方 API 地址
+    /// Official API URL
     pub default_base_url: Option<String>,
-    /// 推荐模型列表
+    /// Recommended model list
     pub models: Vec<AIModelOption>,
-    /// 是否需要 API Key
+    /// Whether API Key is required
     pub requires_api_key: bool,
 }
 
-/// AI 模型选项 - 旧版兼容
+/// AI model option - legacy compatibility
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AIModelOption {
-    /// 模型 ID
+    /// Model ID
     pub id: String,
-    /// 显示名称
+    /// Display name
     pub name: String,
-    /// 描述
+    /// Description
     pub description: Option<String>,
-    /// 是否推荐
+    /// Whether recommended
     pub recommended: bool,
 }
 
-/// 渠道配置
+/// Channel configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChannelConfig {
-    /// 渠道 ID
+    /// Channel ID
     pub id: String,
-    /// 渠道类型
+    /// Channel type
     pub channel_type: String,
-    /// 是否启用
+    /// Whether enabled
     pub enabled: bool,
-    /// 配置详情
+    /// Configuration details
     pub config: HashMap<String, serde_json::Value>,
 }
 
-/// 环境变量配置
+/// Environment variable configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EnvConfig {
     pub key: String,

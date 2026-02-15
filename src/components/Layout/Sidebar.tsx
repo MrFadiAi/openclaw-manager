@@ -6,6 +6,8 @@ import {
   FlaskConical,
   ScrollText,
   Settings,
+  Blocks,
+  Book,
 } from 'lucide-react';
 import { PageType } from '../../App';
 import clsx from 'clsx';
@@ -23,19 +25,21 @@ interface SidebarProps {
 }
 
 const menuItems: { id: PageType; label: string; icon: React.ElementType }[] = [
-  { id: 'dashboard', label: '概览', icon: LayoutDashboard },
-  { id: 'ai', label: 'AI 配置', icon: Bot },
-  { id: 'channels', label: '消息渠道', icon: MessageSquare },
-  { id: 'testing', label: '测试诊断', icon: FlaskConical },
-  { id: 'logs', label: '应用日志', icon: ScrollText },
-  { id: 'settings', label: '设置', icon: Settings },
+  { id: 'dashboard', label: 'Overview', icon: LayoutDashboard },
+  { id: 'mcp', label: 'MCPs', icon: Blocks },
+  { id: 'skills', label: 'Skills', icon: Book },
+  { id: 'ai', label: 'AI Config', icon: Bot },
+  { id: 'channels', label: 'Channels', icon: MessageSquare },
+  { id: 'testing', label: 'Testing', icon: FlaskConical },
+  { id: 'logs', label: 'Logs', icon: ScrollText },
+  { id: 'settings', label: 'Settings', icon: Settings },
 ];
 
 export function Sidebar({ currentPage, onNavigate, serviceStatus }: SidebarProps) {
   const isRunning = serviceStatus?.running ?? false;
   return (
     <aside className="w-64 bg-dark-800 border-r border-dark-600 flex flex-col">
-      {/* Logo 区域（macOS 标题栏拖拽） */}
+      {/* Logo area (macOS titlebar drag) */}
       <div className="h-14 flex items-center px-6 titlebar-drag border-b border-dark-600">
         <div className="flex items-center gap-3 titlebar-no-drag">
           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-claw-400 to-claw-600 flex items-center justify-center">
@@ -48,13 +52,13 @@ export function Sidebar({ currentPage, onNavigate, serviceStatus }: SidebarProps
         </div>
       </div>
 
-      {/* 导航菜单 */}
+      {/* Navigation menu */}
       <nav className="flex-1 py-4 px-3">
         <ul className="space-y-1">
           {menuItems.map((item) => {
             const isActive = currentPage === item.id;
             const Icon = item.icon;
-            
+
             return (
               <li key={item.id}>
                 <button
@@ -82,16 +86,16 @@ export function Sidebar({ currentPage, onNavigate, serviceStatus }: SidebarProps
         </ul>
       </nav>
 
-      {/* 底部信息 */}
+      {/* Footer info */}
       <div className="p-4 border-t border-dark-600">
         <div className="px-4 py-3 bg-dark-700 rounded-lg">
           <div className="flex items-center gap-2 mb-2">
             <div className={clsx('status-dot', isRunning ? 'running' : 'stopped')} />
             <span className="text-xs text-gray-400">
-              {isRunning ? '服务运行中' : '服务未启动'}
+              {isRunning ? 'Service Running' : 'Service Stopped'}
             </span>
           </div>
-          <p className="text-xs text-gray-500">端口: {serviceStatus?.port ?? 18789}</p>
+          <p className="text-xs text-gray-500">Port: {serviceStatus?.port ?? 18789}</p>
         </div>
       </div>
     </aside>

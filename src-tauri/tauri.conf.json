@@ -42,8 +42,8 @@
       "icons/icon.ico"
     ],
     "category": "Utility",
-    "shortDescription": "OpenClaw AI 助手管理工具",
-    "longDescription": "OpenClaw Manager 是一个跨平台的高性能管理工具，用于配置和管理 OpenClaw AI 助手服务。",
+    "shortDescription": "OpenClaw AI Assistant Management Tool",
+    "longDescription": "OpenClaw Manager is a cross-platform high-performance management tool for configuring and managing OpenClaw AI assistant services.",
     "copyright": "Copyright © 2024 OpenClaw Team",
     "macOS": {
       "minimumSystemVersion": "10.15",

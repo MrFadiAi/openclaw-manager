@@ -7,21 +7,21 @@ export default {
   theme: {
     extend: {
       colors: {
-        // OpenClaw 品牌色
+        // OpenClaw brand colors
         claw: {
           50: '#fef3f2',
           100: '#fee4e2',
           200: '#ffccc7',
           300: '#ffa8a0',
           400: '#ff7a6b',
-          500: '#f94d3a',  // 主色 - 龙虾红
+          500: '#f94d3a',  // Primary color - Lobster Red
           600: '#e63024',
           700: '#c1241a',
           800: '#a02119',
           900: '#84221c',
           950: '#480d09',
         },
-        // 深色主题背景
+        // Dark theme background
         dark: {
           900: '#0a0a0b',
           800: '#111113',
@@ -30,7 +30,7 @@ export default {
           500: '#2e2e33',
           400: '#3d3d44',
         },
-        // 强调色
+        // Accent colors
         accent: {
           cyan: '#22d3ee',
           purple: '#a78bfa',

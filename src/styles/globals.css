@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* 基础样式 */
+/* Base styles */
 * {
   margin: 0;
   padding: 0;
@@ -22,7 +22,7 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* macOS 标题栏拖拽区域 */
+/* macOS title bar drag area */
 .titlebar-drag {
   -webkit-app-region: drag;
 }
@@ -31,37 +31,37 @@ body {
   -webkit-app-region: no-drag;
 }
 
-/* 自定义选择样式 */
+/* Custom selection style */
 ::selection {
   background-color: rgba(249, 77, 58, 0.3);
   color: white;
 }
 
-/* 输入框焦点样式 */
+/* Input focus style */
 input:focus, textarea:focus, select:focus {
   outline: none;
 }
 
-/* 按钮禁用状态 */
+/* Button disabled state */
 button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
 
-/* 动画工具类 */
+/* Animation utility classes */
 @layer utilities {
   .animate-in {
     animation: fadeIn 0.3s ease-out;
   }
-  
+
   .slide-in-right {
     animation: slideInRight 0.3s ease-out;
   }
-  
+
   .slide-in-up {
     animation: slideUp 0.3s ease-out;
   }
-  
+
   @keyframes slideInRight {
     from {
       transform: translateX(20px);
@@ -72,12 +72,12 @@ button:disabled {
       opacity: 1;
     }
   }
-  
-  /* 发光脉冲 */
+
+  /* Glow pulse */
   .glow-pulse {
     animation: glowPulse 2s ease-in-out infinite;
   }
-  
+
   @keyframes glowPulse {
     0%, 100% {
       box-shadow: 0 0 5px rgba(249, 77, 58, 0.4);
@@ -88,13 +88,13 @@ button:disabled {
   }
 }
 
-/* 滚动条容器 */
+/* Scrollbar container */
 .scroll-container {
   overflow-y: auto;
   scrollbar-gutter: stable;
 }
 
-/* 代码块样式 */
+/* Code block style */
 .code-block {
   font-family: 'SF Mono', 'JetBrains Mono', 'Fira Code', monospace;
   background: #1a1a1d;
@@ -106,7 +106,7 @@ button:disabled {
   overflow-x: auto;
 }
 
-/* 卡片悬浮效果 */
+/* Card hover effect */
 .card-hover {
   transition: all 0.2s ease;
 }
@@ -116,14 +116,14 @@ button:disabled {
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
 }
 
-/* 玻璃效果 */
+/* Glass effect */
 .glass {
   background: rgba(26, 26, 29, 0.8);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
 }
 
-/* 状态指示器 */
+/* Status indicator */
 .status-dot {
   width: 8px;
   height: 8px;
@@ -153,18 +153,18 @@ button:disabled {
   }
 }
 
-/* 渐变背景 */
+/* Gradient background */
 .bg-gradient-radial {
   background: radial-gradient(ellipse at top, rgba(249, 77, 58, 0.1) 0%, transparent 50%);
 }
 
-/* 图标按钮 */
+/* Icon button */
 .icon-button {
   @apply p-2 rounded-lg transition-colors;
   @apply hover:bg-dark-500 active:bg-dark-400;
 }
 
-/* 输入框通用样式 */
+/* Input base style */
 .input-base {
   @apply w-full px-4 py-3 rounded-lg;
   @apply bg-dark-700 border border-dark-500;
@@ -173,7 +173,7 @@ button:disabled {
   @apply transition-all duration-200;
 }
 
-/* 按钮通用样式 */
+/* Button base styles */
 .btn-primary {
   @apply px-6 py-3 rounded-lg font-medium;
   @apply bg-claw-500 text-white;

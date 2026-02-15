@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { invoke } from '@tauri-apps/api/core';
 import { Sidebar } from './components/Layout/Sidebar';
@@ -6,6 +6,8 @@ import { Header } from './components/Layout/Header';
 import { Dashboard } from './components/Dashboard';
 import { AIConfig } from './components/AIConfig';
 import { Channels } from './components/Channels';
+import { MCP } from './components/MCP';
+import { Skills } from './components/Skills';
 import { Settings } from './components/Settings';
 import { Testing } from './components/Testing';
 import { Logs } from './components/Logs';
@@ -13,12 +15,14 @@ import { appLogger } from './lib/logger';
 import { isTauri } from './lib/tauri';
 import { Download, X, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
 
-export type PageType = 'dashboard' | 'ai' | 'channels' | 'testing' | 'logs' | 'settings';
+export type PageType = 'dashboard' | 'mcp' | 'skills' | 'ai' | 'channels' | 'testing' | 'logs' | 'settings';
 
 export interface EnvironmentStatus {
   node_installed: boolean;
   node_version: string | null;
   node_version_ok: boolean;
+  git_installed: boolean;
+  git_version: string | null;
   openclaw_installed: boolean;
   openclaw_version: string | null;
   config_dir_exists: boolean;
@@ -45,56 +49,91 @@ interface UpdateResult {
   error?: string;
 }
 
+class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean, error: Error | null }> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    appLogger.error('ErrorBoundary caught error', { error, errorInfo });
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="p-8 text-center">
+          <AlertCircle size={48} className="mx-auto text-red-400 mb-4" />
+          <h2 className="text-xl font-bold text-white mb-2">Something went wrong</h2>
+          <p className="text-red-200 mb-4">{this.state.error?.message}</p>
+          <button
+            onClick={() => this.setState({ hasError: false })}
+            className="px-4 py-2 bg-dark-700 hover:bg-dark-600 rounded-lg text-white text-sm"
+          >
+            Try again
+          </button>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
 function App() {
   const [currentPage, setCurrentPage] = useState<PageType>('dashboard');
   const [isReady, setIsReady] = useState<boolean | null>(null);
   const [envStatus, setEnvStatus] = useState<EnvironmentStatus | null>(null);
   const [serviceStatus, setServiceStatus] = useState<ServiceStatus | null>(null);
-  
-  // 更新相关状态
+
+  // Update related state
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
   const [showUpdateBanner, setShowUpdateBanner] = useState(false);
   const [updating, setUpdating] = useState(false);
   const [updateResult, setUpdateResult] = useState<UpdateResult | null>(null);
 
-  // 检查环境
+  // Check environment
   const checkEnvironment = useCallback(async () => {
     if (!isTauri()) {
-      appLogger.warn('不在 Tauri 环境中，跳过环境检查');
+      appLogger.warn('Not in Tauri environment, skipping environment check');
       setIsReady(true);
       return;
     }
-    
-    appLogger.info('开始检查系统环境...');
+
+    appLogger.info('Starting system environment check...');
     try {
       const status = await invoke<EnvironmentStatus>('check_environment');
-      appLogger.info('环境检查完成', status);
+      appLogger.info('Environment check completed', status);
       setEnvStatus(status);
-      setIsReady(true); // 总是显示主界面
+      setIsReady(true); // Always show main interface
     } catch (e) {
-      appLogger.error('环境检查失败', e);
+      appLogger.error('Environment check failed', e);
       setIsReady(true);
     }
   }, []);
 
-  // 检查更新
+  // Check for updates
   const checkUpdate = useCallback(async () => {
     if (!isTauri()) return;
-    
-    appLogger.info('检查 OpenClaw 更新...');
+
+    appLogger.info('Checking for OpenClaw updates...');
     try {
       const info = await invoke<UpdateInfo>('check_openclaw_update');
-      appLogger.info('更新检查结果', info);
+      appLogger.info('Update check result', info);
       setUpdateInfo(info);
       if (info.update_available) {
         setShowUpdateBanner(true);
       }
     } catch (e) {
-      appLogger.error('检查更新失败', e);
+      appLogger.error('Update check failed', e);
     }
   }, []);
 
-  // 执行更新
+  // Perform update
   const handleUpdate = async () => {
     setUpdating(true);
     setUpdateResult(null);
@@ -102,9 +141,9 @@ function App() {
       const result = await invoke<UpdateResult>('update_openclaw');
       setUpdateResult(result);
       if (result.success) {
-        // 更新成功后重新检查环境
+        // Re-check environment after successful update
         await checkEnvironment();
-        // 3秒后关闭提示
+        // Close notification after 3 seconds
         setTimeout(() => {
           setShowUpdateBanner(false);
           setUpdateResult(null);
@@ -113,7 +152,7 @@ function App() {
     } catch (e) {
       setUpdateResult({
         success: false,
-        message: '更新过程中发生错误',
+        message: 'Error occurred during update',
         error: String(e),
       });
     } finally {
@@ -122,11 +161,11 @@ function App() {
   };
 
   useEffect(() => {
-    appLogger.info('🦞 App 组件已挂载');
+    appLogger.info('🦞 App component mounted');
     checkEnvironment();
   }, [checkEnvironment]);
 
-  // 启动后延迟检查更新（避免阻塞启动）
+  // Delay update check after startup (avoid blocking startup)
   useEffect(() => {
     if (!isTauri()) return;
     const timer = setTimeout(() => {
@@ -135,17 +174,17 @@ function App() {
     return () => clearTimeout(timer);
   }, [checkUpdate]);
 
-  // 定期获取服务状态
+  // Periodically get service status
   useEffect(() => {
-    // 不在 Tauri 环境中则不轮询
+    // Don't poll if not in Tauri environment
     if (!isTauri()) return;
-    
+
     const fetchServiceStatus = async () => {
       try {
         const status = await invoke<ServiceStatus>('get_service_status');
         setServiceStatus(status);
       } catch {
-        // 静默处理轮询错误
+        // Silently handle polling errors
       }
     };
     fetchServiceStatus();
@@ -154,13 +193,13 @@ function App() {
   }, []);
 
   const handleSetupComplete = useCallback(() => {
-    appLogger.info('安装向导完成');
-    checkEnvironment(); // 重新检查环境
+    appLogger.info('Setup wizard completed');
+    checkEnvironment(); // Re-check environment
   }, [checkEnvironment]);
 
-  // 页面切换处理
+  // Page navigation handler
   const handleNavigate = (page: PageType) => {
-    appLogger.action('页面切换', { from: currentPage, to: page });
+    appLogger.action('Page navigation', { from: currentPage, to: page });
     setCurrentPage(page);
   };
 
@@ -173,6 +212,8 @@ function App() {
 
     const pages: Record<PageType, JSX.Element> = {
       dashboard: <Dashboard envStatus={envStatus} onSetupComplete={handleSetupComplete} />,
+      mcp: <MCP />,
+      skills: <Skills />,
       ai: <AIConfig />,
       channels: <Channels />,
       testing: <Testing />,
@@ -197,7 +238,7 @@ function App() {
     );
   };
 
-  // 正在检查环境
+  // Checking environment
   if (isReady === null) {
     return (
       <div className="flex h-screen bg-dark-900 items-center justify-center">
@@ -206,19 +247,19 @@ function App() {
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-xl bg-gradient-to-br from-brand-500 to-purple-600 mb-4 animate-pulse">
             <span className="text-3xl">🦞</span>
           </div>
-          <p className="text-dark-400">正在启动...</p>
+          <p className="text-dark-400">Starting...</p>
         </div>
       </div>
     );
   }
 
-  // 主界面
+  // Main interface
   return (
     <div className="flex h-screen bg-dark-900 overflow-hidden">
-      {/* 背景装饰 */}
+      {/* Background decoration */}
       <div className="fixed inset-0 bg-gradient-radial pointer-events-none" />
-      
-      {/* 更新提示横幅 */}
+
+      {/* Update banner */}
       <AnimatePresence>
         {showUpdateBanner && updateInfo?.update_available && (
           <motion.div
@@ -244,16 +285,16 @@ function App() {
                   ) : (
                     <>
                       <p className="text-sm font-medium text-white">
-                        发现新版本 OpenClaw {updateInfo.latest_version}
+                        New version available: OpenClaw {updateInfo.latest_version}
                       </p>
                       <p className="text-xs text-white/70">
-                        当前版本: {updateInfo.current_version}
+                        Current version: {updateInfo.current_version}
                       </p>
                     </>
                   )}
                 </div>
               </div>
-              
+
               <div className="flex items-center gap-2">
                 {!updateResult && (
                   <button
@@ -264,12 +305,12 @@ function App() {
                     {updating ? (
                       <>
                         <Loader2 size={14} className="animate-spin" />
-                        更新中...
+                        Updating...
                       </>
                     ) : (
                       <>
                         <Download size={14} />
-                        立即更新
+                        Update Now
                       </>
                     )}
                   </button>
@@ -288,18 +329,20 @@ function App() {
           </motion.div>
         )}
       </AnimatePresence>
-      
-      {/* 侧边栏 */}
+
+      {/* Sidebar */}
       <Sidebar currentPage={currentPage} onNavigate={handleNavigate} serviceStatus={serviceStatus} />
-      
-      {/* 主内容区 */}
+
+      {/* Main content area */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* 标题栏（macOS 拖拽区域） */}
+        {/* Header (macOS drag area) */}
         <Header currentPage={currentPage} />
-        
-        {/* 页面内容 */}
+
+        {/* Page content */}
         <main className="flex-1 overflow-hidden p-6">
-          {renderPage()}
+          <ErrorBoundary>
+            {renderPage()}
+          </ErrorBoundary>
         </main>
       </div>
     </div>

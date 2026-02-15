@@ -24,7 +24,7 @@ import {
 import clsx from 'clsx';
 import { aiLogger } from '../../lib/logger';
 
-// ============ 类型定义 ============
+// ============ Type Definitions ============
 
 interface SuggestedModel {
   id: string;
@@ -90,13 +90,13 @@ interface AITestResult {
   latency_ms: number | null;
 }
 
-// ============ 添加/编辑 Provider 对话框 ============
+// ============ Add/Edit Provider Dialog ============
 
 interface ProviderDialogProps {
   officialProviders: OfficialProvider[];
   onClose: () => void;
   onSave: () => void;
-  // 编辑模式时传入现有配置
+  // Pass existing configuration when in edit mode
   editingProvider?: ConfiguredProvider | null;
 }
 
@@ -112,7 +112,7 @@ function ProviderDialog({ officialProviders, onClose, onSave, editingProvider }:
     return null;
   });
   
-  // 配置表单
+  // Configuration form
   const [providerName, setProviderName] = useState(editingProvider?.name || '');
   const [baseUrl, setBaseUrl] = useState(editingProvider?.base_url || '');
   const [apiKey, setApiKey] = useState('');
@@ -135,7 +135,7 @@ function ProviderDialog({ officialProviders, onClose, onSave, editingProvider }:
   const [formError, setFormError] = useState<string | null>(null);
   const [showCustomUrlWarning, setShowCustomUrlWarning] = useState(false);
 
-  // 检查是否是官方 Provider 名字但使用了自定义地址
+  // Check if using official Provider name with custom URL
   const isCustomUrlWithOfficialName = (() => {
     const official = officialProviders.find(p => p.id === providerName);
     if (official && official.default_base_url && baseUrl !== official.default_base_url) {
@@ -149,7 +149,7 @@ function ProviderDialog({ officialProviders, onClose, onSave, editingProvider }:
     setProviderName(provider.id);
     setBaseUrl(provider.default_base_url || '');
     setApiType(provider.api_type);
-    // 预选推荐模型
+    // Pre-select recommended models
     const recommended = provider.suggested_models.filter(m => m.recommended).map(m => m.id);
     setSelectedModels(recommended.length > 0 ? recommended : [provider.suggested_models[0]?.id].filter(Boolean));
     setFormError(null);
@@ -185,7 +185,7 @@ function ProviderDialog({ officialProviders, onClose, onSave, editingProvider }:
     }
   };
 
-  // 自动建议使用自定义名称
+  // Automatically suggest using a custom name
   const suggestedName = (() => {
     if (isCustomUrlWithOfficialName && selectedOfficial) {
       return `${selectedOfficial.id}-custom`;
@@ -203,11 +203,11 @@ function ProviderDialog({ officialProviders, onClose, onSave, editingProvider }:
     setFormError(null);
     
     if (!providerName || !baseUrl || selectedModels.length === 0) {
-      setFormError('请填写完整的 Provider 信息和至少选择一个模型');
+      setFormError('Please fill in complete Provider information and select at least one model');
       return;
     }
 
-    // 如果使用官方名字但自定义了地址，给出警告
+    // Show warning if using official name with custom URL
     if (isCustomUrlWithOfficialName && !forceOverride) {
       setShowCustomUrlWarning(true);
       return;
@@ -216,10 +216,10 @@ function ProviderDialog({ officialProviders, onClose, onSave, editingProvider }:
     setSaving(true);
     setShowCustomUrlWarning(false);
     try {
-      // 构建模型配置
+      // Build model configuration
       const models: ModelConfig[] = selectedModels.map(modelId => {
         const suggested = selectedOfficial?.suggested_models.find(m => m.id === modelId);
-        // 编辑模式下，保留原有模型的配置
+        // In edit mode, preserve original model configuration
         const existingModel = editingProvider?.models.find(m => m.id === modelId);
         return {
           id: modelId,
@@ -241,12 +241,12 @@ function ProviderDialog({ officialProviders, onClose, onSave, editingProvider }:
         models,
       });
 
-      aiLogger.info(`✓ Provider ${providerName} 已${isEditing ? '更新' : '保存'}`);
+      aiLogger.info(`✓ Provider ${providerName} ${isEditing ? 'updated' : 'saved'}`);
       onSave();
       onClose();
     } catch (e) {
-      aiLogger.error('保存 Provider 失败', e);
-      setFormError('保存失败: ' + String(e));
+      aiLogger.error('Failed to save Provider', e);
+      setFormError('Save failed: ' + String(e));
     } finally {
       setSaving(false);
     }
@@ -267,20 +267,20 @@ function ProviderDialog({ officialProviders, onClose, onSave, editingProvider }:
         className="bg-dark-800 rounded-2xl border border-dark-600 w-full max-w-2xl max-h-[85vh] overflow-hidden"
         onClick={e => e.stopPropagation()}
       >
-        {/* 头部 */}
+        {/* Header */}
         <div className="px-6 py-4 border-b border-dark-600 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-white flex items-center gap-2">
             {isEditing ? <Settings2 size={20} className="text-claw-400" /> : <Plus size={20} className="text-claw-400" />}
-            {isEditing 
-              ? `编辑 Provider: ${editingProvider?.name}` 
-              : (step === 'select' ? '添加 AI Provider' : `配置 ${selectedOfficial?.name || '自定义 Provider'}`)}
+            {isEditing
+              ? `Edit Provider: ${editingProvider?.name}`
+              : (step === 'select' ? 'Add AI Provider' : `Configure ${selectedOfficial?.name || 'Custom Provider'}`)}
           </h2>
           <button onClick={onClose} className="text-gray-500 hover:text-white">
             ✕
           </button>
         </div>
 
-        {/* 内容 */}
+        {/* Content */}
         <div className="p-6 overflow-y-auto max-h-[calc(85vh-140px)]">
           <AnimatePresence mode="wait">
             {step === 'select' ? (
@@ -291,9 +291,9 @@ function ProviderDialog({ officialProviders, onClose, onSave, editingProvider }:
                 exit={{ opacity: 0, x: -20 }}
                 className="space-y-4"
               >
-                {/* 官方 Provider */}
+                {/* Official Providers */}
                 <div className="space-y-3">
-                  <h3 className="text-sm font-medium text-gray-400">官方 Provider</h3>
+                  <h3 className="text-sm font-medium text-gray-400">Official Providers</h3>
                   <div className="grid grid-cols-2 gap-3">
                     {officialProviders.map(provider => (
                 <button
@@ -305,7 +305,7 @@ function ProviderDialog({ officialProviders, onClose, onSave, editingProvider }:
                         <div className="flex-1 min-w-0">
                           <p className="font-medium text-white truncate">{provider.name}</p>
                           <p className="text-xs text-gray-500 truncate">
-                            {provider.suggested_models.length} 个模型
+                            {provider.suggested_models.length} models
                           </p>
                     </div>
                         <ChevronRight size={16} className="text-gray-500 group-hover:text-claw-400 transition-colors" />
@@ -314,14 +314,14 @@ function ProviderDialog({ officialProviders, onClose, onSave, editingProvider }:
           </div>
         </div>
 
-                {/* 自定义 Provider */}
+                {/* Custom Provider */}
                 <div className="pt-4 border-t border-dark-600">
                   <button
                     onClick={handleSelectCustom}
                     className="w-full flex items-center justify-center gap-2 p-4 rounded-xl border-2 border-dashed border-dark-500 hover:border-claw-500/50 text-gray-400 hover:text-white transition-all"
                   >
                     <Settings2 size={18} />
-                    <span>自定义 Provider (兼容 OpenAI/Anthropic API)</span>
+                    <span>Custom Provider (OpenAI/Anthropic API Compatible)</span>
                   </button>
                 </div>
               </motion.div>
@@ -333,17 +333,17 @@ function ProviderDialog({ officialProviders, onClose, onSave, editingProvider }:
                 exit={{ opacity: 0, x: 20 }}
                 className="space-y-5"
               >
-                {/* Provider 名称 */}
+                {/* Provider Name */}
                 <div>
                   <label className="block text-sm text-gray-400 mb-2">
-                    Provider 名称
-                    <span className="text-gray-600 text-xs ml-2">(用于配置标识，如 anthropic-custom)</span>
+                    Provider Name
+                    <span className="text-gray-600 text-xs ml-2">(For configuration identifier, e.g., anthropic-custom)</span>
                   </label>
                   <input
                     type="text"
                     value={providerName}
                     onChange={e => { setFormError(null); setProviderName(e.target.value); }}
-                    placeholder="如: anthropic-custom, my-openai"
+                    placeholder="e.g., anthropic-custom, my-openai"
                     className={clsx(
                       'input-base',
                       isCustomUrlWithOfficialName && 'border-yellow-500/50'
@@ -352,28 +352,28 @@ function ProviderDialog({ officialProviders, onClose, onSave, editingProvider }:
                   />
                   {isEditing && (
                     <p className="text-xs text-gray-500 mt-1">
-                      Provider 名称不可修改，如需更改请删除后重新创建
+                      Provider name cannot be modified. Please delete and recreate if you need to change it.
                     </p>
                   )}
                   {isCustomUrlWithOfficialName && !isEditing && (
                     <div className="mt-2 p-2 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
                       <p className="text-xs text-yellow-400">
-                        ⚠️ 您使用的是官方 Provider 名称，但修改了 API 地址。建议使用不同的名称以避免配置冲突。
+                        ⚠️ You are using an official Provider name but have modified the API URL. It is recommended to use a different name to avoid configuration conflicts.
                       </p>
                       <button
                         type="button"
                         onClick={handleApplySuggestedName}
                         className="mt-1 text-xs text-yellow-300 hover:text-yellow-200 underline"
                       >
-                        使用建议名称: {suggestedName}
+                        Use suggested name: {suggestedName}
                       </button>
                     </div>
                   )}
                 </div>
 
-                {/* API 地址 */}
+                {/* API URL */}
                 <div>
-                  <label className="block text-sm text-gray-400 mb-2">API 地址</label>
+                  <label className="block text-sm text-gray-400 mb-2">API URL</label>
                   <input
                     type="text"
                     value={baseUrl}
@@ -388,17 +388,17 @@ function ProviderDialog({ officialProviders, onClose, onSave, editingProvider }:
                   <label className="block text-sm text-gray-400 mb-2">
                     API Key
                     {!selectedOfficial?.requires_api_key && (
-                      <span className="text-gray-600 text-xs ml-2">(可选)</span>
+                      <span className="text-gray-600 text-xs ml-2">(Optional)</span>
                     )}
                   </label>
-                  {/* 编辑模式下显示当前 API Key 状态 */}
+                  {/* Show current API Key status in edit mode */}
                   {isEditing && editingProvider?.has_api_key && (
                     <div className="mb-2 flex items-center gap-2 text-sm">
-                      <span className="text-gray-500">当前:</span>
+                      <span className="text-gray-500">Current:</span>
                       <code className="px-2 py-0.5 bg-dark-600 rounded text-gray-400">
                         {editingProvider.api_key_masked}
                       </code>
-                      <span className="text-green-400 text-xs">✓ 已配置</span>
+                      <span className="text-green-400 text-xs">✓ Configured</span>
                     </div>
                   )}
                   <div className="relative">
@@ -406,8 +406,8 @@ function ProviderDialog({ officialProviders, onClose, onSave, editingProvider }:
                       type={showApiKey ? 'text' : 'password'}
                       value={apiKey}
                       onChange={e => setApiKey(e.target.value)}
-                      placeholder={isEditing && editingProvider?.has_api_key 
-                        ? "留空保持原有 API Key 不变，或输入新的 Key" 
+                      placeholder={isEditing && editingProvider?.has_api_key
+                        ? "Leave empty to keep existing API Key, or enter a new one"
                         : "sk-..."}
                       className="input-base pr-10"
                     />
@@ -421,34 +421,34 @@ function ProviderDialog({ officialProviders, onClose, onSave, editingProvider }:
                   </div>
                   {isEditing && editingProvider?.has_api_key && (
                     <p className="text-xs text-gray-500 mt-1">
-                      💡 如果不需要更改 API Key，请保持为空
+                      💡 Leave empty if you don't need to change the API Key
                     </p>
                   )}
                 </div>
 
-                {/* API 类型 */}
+                {/* API Type */}
                 <div>
-                  <label className="block text-sm text-gray-400 mb-2">API 类型</label>
+                  <label className="block text-sm text-gray-400 mb-2">API Type</label>
                   <select
                     value={apiType}
                     onChange={e => setApiType(e.target.value)}
                     className="input-base"
                   >
-                    <option value="openai-completions">OpenAI 兼容 (openai-completions)</option>
-                    <option value="anthropic-messages">Anthropic 兼容 (anthropic-messages)</option>
+                    <option value="openai-completions">OpenAI Compatible (openai-completions)</option>
+                    <option value="anthropic-messages">Anthropic Compatible (anthropic-messages)</option>
                   </select>
                 </div>
 
-                {/* 模型选择 */}
+                {/* Model Selection */}
               <div>
                 <label className="block text-sm text-gray-400 mb-2">
-                    选择模型
+                    Select Models
                     <span className="text-gray-600 text-xs ml-2">
-                      (已选 {selectedModels.length} 个)
+                      ({selectedModels.length} selected)
                     </span>
                   </label>
                   
-                  {/* 预设模型 */}
+                  {/* Preset Models */}
                   {selectedOfficial && (
                     <div className="space-y-2 mb-3">
                       {selectedOfficial.suggested_models.map(model => (
@@ -469,7 +469,7 @@ function ProviderDialog({ officialProviders, onClose, onSave, editingProvider }:
                             )}>
                               {model.name}
                               {model.recommended && (
-                                <span className="ml-2 text-xs text-claw-400">推荐</span>
+                                <span className="ml-2 text-xs text-claw-400">Recommended</span>
                               )}
                             </p>
                             {model.description && (
@@ -484,13 +484,13 @@ function ProviderDialog({ officialProviders, onClose, onSave, editingProvider }:
                     </div>
                   )}
 
-                  {/* 自定义模型输入 */}
+                  {/* Custom Model Input */}
                   <div className="flex gap-2">
                   <input
                     type="text"
                       value={customModelId}
                       onChange={e => setCustomModelId(e.target.value)}
-                      placeholder="输入自定义模型 ID"
+                      placeholder="Enter custom model ID"
                       className="input-base flex-1"
                       onKeyDown={e => e.key === 'Enter' && addCustomModel()}
                     />
@@ -503,7 +503,7 @@ function ProviderDialog({ officialProviders, onClose, onSave, editingProvider }:
                     </button>
                   </div>
 
-                  {/* 已添加的自定义模型 */}
+                  {/* Added Custom Models */}
                   {selectedModels.filter(id => !selectedOfficial?.suggested_models.find(m => m.id === id)).length > 0 && (
                     <div className="mt-3 flex flex-wrap gap-2">
                       {selectedModels
@@ -526,7 +526,7 @@ function ProviderDialog({ officialProviders, onClose, onSave, editingProvider }:
                   )}
                 </div>
 
-                {/* 文档链接 */}
+                {/* Documentation Link */}
                 {selectedOfficial?.docs_url && (
                   <a
                     href={selectedOfficial.docs_url}
@@ -535,11 +535,11 @@ function ProviderDialog({ officialProviders, onClose, onSave, editingProvider }:
                     className="inline-flex items-center gap-1 text-sm text-claw-400 hover:text-claw-300"
                   >
                     <ExternalLink size={14} />
-                    查看官方文档
+                    View Official Documentation
                   </a>
                 )}
 
-                {/* 表单错误提示 */}
+                {/* Form Error Message */}
                 {formError && (
                   <motion.div
                     initial={{ opacity: 0, y: -10 }}
@@ -553,7 +553,7 @@ function ProviderDialog({ officialProviders, onClose, onSave, editingProvider }:
                   </motion.div>
                 )}
 
-                {/* 自定义 URL 警告对话框 */}
+                {/* Custom URL Warning Dialog */}
                 {showCustomUrlWarning && (
                   <motion.div
                     initial={{ opacity: 0, y: -10 }}
@@ -561,30 +561,30 @@ function ProviderDialog({ officialProviders, onClose, onSave, editingProvider }:
                     className="p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg space-y-3"
                   >
                     <p className="text-yellow-400 text-sm">
-                      ⚠️ 您使用的是官方 Provider 名称 "{providerName}"，但修改了 API 地址。
-                      这可能导致配置被 OpenClaw 内置设置覆盖。
+                      ⚠️ You are using the official Provider name "{providerName}" but have modified the API URL.
+                      This may cause the configuration to be overridden by OpenClaw's built-in settings.
                     </p>
                     <p className="text-yellow-300 text-sm">
-                      建议使用不同的名称，如 "{suggestedName}"
+                      It is recommended to use a different name, such as "{suggestedName}"
                     </p>
                     <div className="flex gap-2 pt-2">
                       <button
                         onClick={handleApplySuggestedName}
                         className="btn-secondary text-sm py-2 px-3"
                       >
-                        使用建议名称
+                        Use Suggested Name
                       </button>
                       <button
                         onClick={() => handleSave(true)}
                         className="btn-primary text-sm py-2 px-3"
                       >
-                        仍然保存
+                        Save Anyway
                       </button>
                       <button
                         onClick={() => setShowCustomUrlWarning(false)}
                         className="text-sm text-gray-400 hover:text-white px-3"
                       >
-                        取消
+                        Cancel
                       </button>
                     </div>
                   </motion.div>
@@ -594,20 +594,20 @@ function ProviderDialog({ officialProviders, onClose, onSave, editingProvider }:
           </AnimatePresence>
               </div>
 
-        {/* 底部按钮 */}
+        {/* Footer Buttons */}
         <div className="px-6 py-4 border-t border-dark-600 flex justify-between">
           {step === 'configure' && !isEditing && (
             <button
               onClick={() => setStep('select')}
               className="btn-secondary"
             >
-              返回
+              Back
             </button>
           )}
           <div className="flex-1" />
           <div className="flex gap-3">
             <button onClick={onClose} className="btn-secondary">
-              取消
+              Cancel
             </button>
             {step === 'configure' && !showCustomUrlWarning && (
               <button
@@ -616,7 +616,7 @@ function ProviderDialog({ officialProviders, onClose, onSave, editingProvider }:
                 className="btn-primary flex items-center gap-2"
               >
                 {saving ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
-                {isEditing ? '更新' : '保存'}
+                {isEditing ? 'Update' : 'Save'}
               </button>
             )}
           </div>
@@ -626,7 +626,7 @@ function ProviderDialog({ officialProviders, onClose, onSave, editingProvider }:
   );
 }
 
-// ============ Provider 卡片 ============
+// ============ Provider Card ============
 
 interface ProviderCardProps {
   provider: ConfiguredProvider;
@@ -642,12 +642,12 @@ function ProviderCard({ provider, officialProviders, onSetPrimary, onRefresh, on
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
-  // 查找官方 Provider 信息
-  const officialInfo = officialProviders.find(p => 
+  // Find official Provider information
+  const officialInfo = officialProviders.find(p =>
     provider.name.includes(p.id) || p.id === provider.name
   );
 
-  // 检查是否使用了自定义地址
+  // Check if using custom URL
   const isCustomUrl = officialInfo && officialInfo.default_base_url && provider.base_url !== officialInfo.default_base_url;
 
   const handleDeleteClick = () => {
@@ -663,7 +663,7 @@ function ProviderCard({ provider, officialProviders, onSetPrimary, onRefresh, on
       setShowDeleteConfirm(false);
       onRefresh();
     } catch (e) {
-      setDeleteError('删除失败: ' + String(e));
+      setDeleteError('Delete failed: ' + String(e));
     } finally {
       setDeleting(false);
     }
@@ -681,7 +681,7 @@ function ProviderCard({ provider, officialProviders, onSetPrimary, onRefresh, on
       animate={{ opacity: 1, y: 0 }}
       className="bg-dark-700 rounded-xl border border-dark-500 overflow-hidden"
     >
-      {/* 头部 */}
+      {/* Header */}
       <div
         className="flex items-center gap-3 p-4 cursor-pointer hover:bg-dark-600/50 transition-colors"
         onClick={() => setExpanded(!expanded)}
@@ -692,26 +692,26 @@ function ProviderCard({ provider, officialProviders, onSetPrimary, onRefresh, on
             <h3 className="font-medium text-white">{provider.name}</h3>
             {provider.has_api_key && (
               <span className="px-1.5 py-0.5 bg-green-500/20 text-green-400 text-xs rounded">
-                已配置
+                Configured
               </span>
             )}
             {isCustomUrl && (
               <span className="px-1.5 py-0.5 bg-yellow-500/20 text-yellow-400 text-xs rounded">
-                自定义地址
+                Custom URL
               </span>
             )}
           </div>
           <p className="text-xs text-gray-500 truncate">{provider.base_url}</p>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-sm text-gray-500">{provider.models.length} 模型</span>
+          <span className="text-sm text-gray-500">{provider.models.length} models</span>
           <motion.div animate={{ rotate: expanded ? 180 : 0 }}>
             <ChevronDown size={18} className="text-gray-500" />
           </motion.div>
         </div>
       </div>
 
-      {/* 展开内容 */}
+      {/* Expanded Content */}
       <AnimatePresence>
         {expanded && (
           <motion.div
@@ -721,7 +721,7 @@ function ProviderCard({ provider, officialProviders, onSetPrimary, onRefresh, on
             className="border-t border-dark-600"
           >
             <div className="p-4 space-y-3">
-              {/* API Key 信息 */}
+              {/* API Key Information */}
               {provider.api_key_masked && (
                 <div className="flex items-center gap-2 text-sm">
                   <span className="text-gray-500">API Key:</span>
@@ -731,7 +731,7 @@ function ProviderCard({ provider, officialProviders, onSetPrimary, onRefresh, on
                 </div>
               )}
 
-              {/* 模型列表 */}
+              {/* Model List */}
               <div className="space-y-2">
                 {provider.models.map(model => (
                   <div
@@ -753,7 +753,7 @@ function ProviderCard({ provider, officialProviders, onSetPrimary, onRefresh, on
                           {model.name}
                           {model.is_primary && (
                             <span className="ml-2 text-xs text-claw-400">
-                              <Star size={12} className="inline -mt-0.5" /> 主模型
+                              <Star size={12} className="inline -mt-0.5" /> Primary Model
                             </span>
                           )}
                         </p>
@@ -765,14 +765,14 @@ function ProviderCard({ provider, officialProviders, onSetPrimary, onRefresh, on
                         onClick={() => onSetPrimary(model.full_id)}
                         className="text-xs text-gray-500 hover:text-claw-400 transition-colors"
                       >
-                        设为主模型
+                        Set as Primary
                       </button>
                     )}
                   </div>
                 ))}
               </div>
 
-              {/* 删除确认对话框 */}
+              {/* Delete Confirmation Dialog */}
               {showDeleteConfirm && (
                 <motion.div
                   initial={{ opacity: 0, y: -10 }}
@@ -780,7 +780,7 @@ function ProviderCard({ provider, officialProviders, onSetPrimary, onRefresh, on
                   className="p-4 bg-red-500/10 border border-red-500/30 rounded-lg space-y-3"
                 >
                   <p className="text-red-400 text-sm">
-                    ⚠️ 确定要删除 Provider "{provider.name}" 吗？这将同时删除其下所有模型配置。
+                    ⚠️ Are you sure you want to delete Provider "{provider.name}"? This will also delete all model configurations under it.
                   </p>
                   {deleteError && (
                     <p className="text-red-300 text-sm bg-red-500/20 p-2 rounded">
@@ -794,20 +794,20 @@ function ProviderCard({ provider, officialProviders, onSetPrimary, onRefresh, on
                       className="btn-primary text-sm py-2 px-3 bg-red-500 hover:bg-red-600 flex items-center gap-1"
                     >
                       {deleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-                      确认删除
+                      Confirm Delete
                     </button>
                     <button
                       onClick={handleDeleteCancel}
                       disabled={deleting}
                       className="btn-secondary text-sm py-2 px-3"
                     >
-                      取消
+                      Cancel
                     </button>
                   </div>
                 </motion.div>
               )}
 
-              {/* 操作按钮 */}
+              {/* Action Buttons */}
               {!showDeleteConfirm && (
                 <div className="flex justify-end gap-4 pt-2">
                   <button
@@ -818,7 +818,7 @@ function ProviderCard({ provider, officialProviders, onSetPrimary, onRefresh, on
                     className="flex items-center gap-1 text-sm text-claw-400 hover:text-claw-300 transition-colors"
                   >
                     <Pencil size={14} />
-                    编辑 Provider
+                    Edit Provider
                   </button>
                   <button
                     onClick={handleDeleteClick}
@@ -826,7 +826,7 @@ function ProviderCard({ provider, officialProviders, onSetPrimary, onRefresh, on
                     className="flex items-center gap-1 text-sm text-red-400 hover:text-red-300 transition-colors"
                   >
                     {deleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-                    删除 Provider
+                    Delete Provider
                   </button>
                 </div>
               )}
@@ -838,7 +838,7 @@ function ProviderCard({ provider, officialProviders, onSetPrimary, onRefresh, on
   );
 }
 
-// ============ 主组件 ============
+// ============ Main Component ============
 
 export function AIConfig() {
   const [loading, setLoading] = useState(true);
@@ -861,19 +861,19 @@ export function AIConfig() {
   };
 
   const runAITest = async () => {
-    aiLogger.action('测试 AI 连接');
+    aiLogger.action('Testing AI connection');
     setTesting(true);
     setTestResult(null);
     try {
       const result = await invoke<AITestResult>('test_ai_connection');
       setTestResult(result);
       if (result.success) {
-        aiLogger.info(`✅ AI 连接测试成功，延迟: ${result.latency_ms}ms`);
+        aiLogger.info(`✅ AI connection test successful, latency: ${result.latency_ms}ms`);
       } else {
-        aiLogger.warn(`❌ AI 连接测试失败: ${result.error}`);
+        aiLogger.warn(`❌ AI connection test failed: ${result.error}`);
       }
     } catch (e) {
-      aiLogger.error('AI 测试失败', e);
+      aiLogger.error('AI test failed', e);
       setTestResult({
         success: false,
         provider: 'unknown',
@@ -888,9 +888,9 @@ export function AIConfig() {
   };
 
   const loadData = useCallback(async () => {
-    aiLogger.info('AIConfig 组件加载数据...');
+    aiLogger.info('Loading AIConfig component data...');
     setError(null);
-    
+
     try {
       const [officials, config] = await Promise.all([
         invoke<OfficialProvider[]>('get_official_providers'),
@@ -898,9 +898,9 @@ export function AIConfig() {
       ]);
       setOfficialProviders(officials);
       setAiConfig(config);
-      aiLogger.info(`加载完成: ${officials.length} 个官方 Provider, ${config.configured_providers.length} 个已配置`);
+      aiLogger.info(`Loading complete: ${officials.length} official providers, ${config.configured_providers.length} configured`);
     } catch (e) {
-      aiLogger.error('加载 AI 配置失败', e);
+      aiLogger.error('Failed to load AI configuration', e);
       setError(String(e));
     } finally {
       setLoading(false);
@@ -914,11 +914,11 @@ export function AIConfig() {
   const handleSetPrimary = async (modelId: string) => {
     try {
       await invoke('set_primary_model', { modelId });
-      aiLogger.info(`主模型已设置为: ${modelId}`);
+      aiLogger.info(`Primary model set to: ${modelId}`);
       loadData();
     } catch (e) {
-      aiLogger.error('设置主模型失败', e);
-      alert('设置失败: ' + e);
+      aiLogger.error('Failed to set primary model', e);
+      alert('Failed to set: ' + e);
     }
   };
 
@@ -933,30 +933,30 @@ export function AIConfig() {
   return (
     <div className="h-full overflow-y-auto scroll-container pr-2">
       <div className="max-w-4xl space-y-6">
-        {/* 错误提示 */}
+        {/* Error Message */}
         {error && (
           <div className="bg-red-500/20 border border-red-500/50 rounded-xl p-4 text-red-300">
-            <p className="font-medium mb-1">加载配置失败</p>
+            <p className="font-medium mb-1">Failed to load configuration</p>
             <p className="text-sm text-red-400">{error}</p>
-            <button 
+            <button
               onClick={loadData}
               className="mt-2 text-sm text-red-300 hover:text-white underline"
             >
-              重试
+              Retry
             </button>
           </div>
         )}
 
-        {/* 概览卡片 */}
+        {/* Overview Card */}
         <div className="bg-gradient-to-br from-dark-700 to-dark-800 rounded-2xl p-6 border border-dark-500">
           <div className="flex items-start justify-between mb-4">
             <div>
               <h2 className="text-xl font-semibold text-white flex items-center gap-2">
                 <Sparkles size={22} className="text-claw-400" />
-                AI 模型配置
+                AI Model Configuration
               </h2>
               <p className="text-sm text-gray-500 mt-1">
-                管理 OpenClaw 使用的 AI Provider 和模型
+                Manage AI Providers and models used by OpenClaw
               </p>
             </div>
             <button
@@ -964,29 +964,29 @@ export function AIConfig() {
               className="btn-primary flex items-center gap-2"
             >
               <Plus size={16} />
-              添加 Provider
+              Add Provider
             </button>
           </div>
 
-          {/* 主模型显示 */}
+          {/* Primary Model Display */}
           <div className="bg-dark-600/50 rounded-xl p-4 flex items-center gap-4">
             <div className="w-12 h-12 rounded-xl bg-claw-500/20 flex items-center justify-center">
               <Star size={24} className="text-claw-400" />
             </div>
             <div className="flex-1">
-              <p className="text-sm text-gray-400">当前主模型</p>
+              <p className="text-sm text-gray-400">Current Primary Model</p>
               {aiConfig?.primary_model ? (
                 <p className="text-lg font-medium text-white">{aiConfig.primary_model}</p>
               ) : (
-                <p className="text-lg text-gray-500">未设置</p>
+                <p className="text-lg text-gray-500">Not Set</p>
               )}
             </div>
             <div className="text-right mr-4">
               <p className="text-sm text-gray-500">
-                {aiConfig?.configured_providers.length || 0} 个 Provider
+                {aiConfig?.configured_providers.length || 0} Providers
               </p>
               <p className="text-sm text-gray-500">
-                {aiConfig?.available_models.length || 0} 个可用模型
+                {aiConfig?.available_models.length || 0} Available Models
               </p>
             </div>
             <button
@@ -999,11 +999,11 @@ export function AIConfig() {
                   ) : (
                 <Zap size={16} />
               )}
-              测试连接
+              Test Connection
             </button>
           </div>
 
-          {/* AI 测试结果 */}
+          {/* AI Test Result */}
           {testResult && (
             <motion.div
               initial={{ opacity: 0, y: 10 }}
@@ -1021,30 +1021,30 @@ export function AIConfig() {
                 )}
                 <div className="flex-1">
                   <p className={clsx('font-medium', testResult.success ? 'text-green-400' : 'text-red-400')}>
-                    {testResult.success ? '连接成功' : '连接失败'}
+                    {testResult.success ? 'Connection Successful' : 'Connection Failed'}
                   </p>
                   {testResult.latency_ms && (
-                    <p className="text-xs text-gray-400">响应时间: {testResult.latency_ms}ms</p>
+                    <p className="text-xs text-gray-400">Response Time: {testResult.latency_ms}ms</p>
                   )}
                 </div>
                 <button
                   onClick={() => setTestResult(null)}
                   className="text-gray-500 hover:text-white text-sm"
                 >
-                  关闭
+                  Close
                 </button>
               </div>
-              
+
               {testResult.response && (
                 <div className="mt-2 p-3 bg-dark-700 rounded-lg">
-                  <p className="text-xs text-gray-400 mb-1">AI 响应:</p>
+                  <p className="text-xs text-gray-400 mb-1">AI Response:</p>
                   <p className="text-sm text-white whitespace-pre-wrap">{testResult.response}</p>
                 </div>
               )}
-              
+
               {testResult.error && (
                 <div className="mt-2 p-3 bg-red-500/10 rounded-lg">
-                  <p className="text-xs text-red-400 mb-1">错误信息:</p>
+                  <p className="text-xs text-red-400 mb-1">Error Message:</p>
                   <p className="text-sm text-red-300 whitespace-pre-wrap">{testResult.error}</p>
                 </div>
               )}
@@ -1052,11 +1052,11 @@ export function AIConfig() {
           )}
         </div>
 
-        {/* 已配置的 Provider 列表 */}
+        {/* Configured Providers List */}
         <div className="space-y-4">
           <h3 className="text-lg font-medium text-white flex items-center gap-2">
             <Server size={18} className="text-gray-500" />
-            已配置的 Provider
+            Configured Providers
           </h3>
 
           {aiConfig?.configured_providers.length === 0 ? (
@@ -1064,12 +1064,12 @@ export function AIConfig() {
               <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-dark-600 flex items-center justify-center">
                 <Plus size={24} className="text-gray-500" />
               </div>
-              <p className="text-gray-400 mb-4">还没有配置任何 AI Provider</p>
+              <p className="text-gray-400 mb-4">No AI Providers configured yet</p>
               <button
                 onClick={() => setShowAddDialog(true)}
                 className="btn-primary"
               >
-                添加第一个 Provider
+                Add First Provider
               </button>
             </div>
           ) : (
@@ -1088,14 +1088,14 @@ export function AIConfig() {
           )}
         </div>
 
-        {/* 可用模型列表 */}
+        {/* Available Models List */}
         {aiConfig && aiConfig.available_models.length > 0 && (
           <div className="space-y-4">
             <h3 className="text-lg font-medium text-white flex items-center gap-2">
               <Cpu size={18} className="text-gray-500" />
-              可用模型列表
+              Available Models
               <span className="text-sm font-normal text-gray-500">
-                ({aiConfig.available_models.length} 个)
+                ({aiConfig.available_models.length} total)
               </span>
             </h3>
             <div className="bg-dark-700 rounded-xl border border-dark-500 p-4">
@@ -1119,19 +1119,19 @@ export function AIConfig() {
           </div>
         )}
 
-        {/* 配置说明 */}
+        {/* Configuration Notes */}
         <div className="bg-dark-700/50 rounded-xl p-4 border border-dark-500">
-          <h4 className="text-sm font-medium text-gray-400 mb-2">配置说明</h4>
+          <h4 className="text-sm font-medium text-gray-400 mb-2">Configuration Notes</h4>
           <ul className="text-sm text-gray-500 space-y-1">
-            <li>• Provider 配置保存在 <code className="text-claw-400">~/.openclaw/openclaw.json</code></li>
-            <li>• 支持官方 Provider（Anthropic、OpenAI、Kimi 等）和自定义 OpenAI/Anthropic 兼容 API</li>
-            <li>• 主模型用于 Agent 的默认推理，可随时切换</li>
-            <li>• 修改配置后需要重启服务生效</li>
+            <li>• Provider configuration is saved in <code className="text-claw-400">~/.openclaw/openclaw.json</code></li>
+            <li>• Supports official Providers (Anthropic, OpenAI, Kimi, etc.) and custom OpenAI/Anthropic compatible APIs</li>
+            <li>• The primary model is used for Agent's default inference and can be switched at any time</li>
+            <li>• Restart the service for configuration changes to take effect</li>
           </ul>
         </div>
       </div>
 
-      {/* 添加/编辑 Provider 对话框 */}
+      {/* Add/Edit Provider Dialog */}
       <AnimatePresence>
         {showAddDialog && (
           <ProviderDialog

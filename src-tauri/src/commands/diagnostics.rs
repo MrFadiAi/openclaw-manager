@@ -1,20 +1,20 @@
 use crate::models::{AITestResult, ChannelTestResult, DiagnosticResult, SystemInfo};
 use crate::utils::{platform, shell};
 use tauri::command;
-use log::{info, warn, error, debug};
+use log::{info, warn, debug};
 
-/// 去除 ANSI 转义序列（颜色代码等）
+/// Strip ANSI escape sequences (color codes, etc.)
 fn strip_ansi_codes(input: &str) -> String {
-    // 匹配 ANSI 转义序列: ESC[ ... m 或 ESC[ ... 其他控制字符
+    // Match ANSI escape sequences: ESC[ ... m or ESC[ ... other control characters
     let mut result = String::with_capacity(input.len());
     let mut chars = input.chars().peekable();
     
     while let Some(c) = chars.next() {
         if c == '\x1b' {
-            // 跳过 ESC[...m 序列
+            // Skip ESC[...m sequence
             if chars.peek() == Some(&'[') {
-                chars.next(); // 跳过 '['
-                // 跳过直到遇到字母
+                chars.next(); // Skip '['
+                // Skip until alphabetic character
                 while let Some(&next) = chars.peek() {
                     chars.next();
                     if next.is_ascii_alphabetic() {
@@ -29,26 +29,26 @@ fn strip_ansi_codes(input: &str) -> String {
     result
 }
 
-/// 从混合输出中提取 JSON 内容
+/// Extract JSON content from mixed output
 fn extract_json_from_output(output: &str) -> Option<String> {
-    // 先去除 ANSI 颜色代码
+    // First strip ANSI color codes
     let clean_output = strip_ansi_codes(output);
-    
-    // 按行查找 JSON 开始位置
+
+    // Find JSON start position line by line
     let lines: Vec<&str> = clean_output.lines().collect();
     let mut json_start_line = None;
     let mut json_end_line = None;
-    
-    // 找到 JSON 开始行：
-    // - 以 { 开头（JSON 对象）
-    // - 或以 [" 或 [数字 开头（真正的 JSON 数组，不是 [plugins] 这样的文本）
+
+    // Find JSON start line:
+    // - Starts with { (JSON object)
+    // - Or starts with [" or [digit (real JSON array, not text like [plugins])
     for (i, line) in lines.iter().enumerate() {
         let trimmed = line.trim();
         if trimmed.starts_with('{') {
             json_start_line = Some(i);
             break;
         }
-        // 检查是否是真正的 JSON 数组（以 [" 或 [数字 或 [{ 开头）
+        // Check if it's a real JSON array (starts with [" or [digit or [{)
         if trimmed.starts_with('[') && trimmed.len() > 1 {
             let second_char = trimmed.chars().nth(1).unwrap_or(' ');
             if second_char == '"' || second_char == '{' || second_char == '[' || second_char.is_ascii_digit() {
@@ -58,7 +58,7 @@ fn extract_json_from_output(output: &str) -> Option<String> {
         }
     }
     
-    // 找到 JSON 结束行（以 } 或 ] 结尾的行，从后往前找）
+    // Find JSON end line (line ending with } or ], search from the end)
     for (i, line) in lines.iter().enumerate().rev() {
         let trimmed = line.trim();
         if trimmed == "}" || trimmed == "}," || trimmed.ends_with('}') {
@@ -81,83 +81,83 @@ fn extract_json_from_output(output: &str) -> Option<String> {
     }
 }
 
-/// 运行诊断
+/// Run diagnostics
 #[command]
 pub async fn run_doctor() -> Result<Vec<DiagnosticResult>, String> {
-    info!("[诊断] 开始运行系统诊断...");
+    info!("[Diagnostics] Starting system diagnostics...");
     let mut results = Vec::new();
-    
-    // 检查 OpenClaw 是否安装
-    info!("[诊断] 检查 OpenClaw 安装状态...");
+
+    // Check if OpenClaw is installed
+    info!("[Diagnostics] Checking OpenClaw installation status...");
     let openclaw_installed = shell::get_openclaw_path().is_some();
-    info!("[诊断] OpenClaw 安装: {}", if openclaw_installed { "✓" } else { "✗" });
+    info!("[Diagnostics] OpenClaw installed: {}", if openclaw_installed { "✓" } else { "✗" });
     results.push(DiagnosticResult {
-        name: "OpenClaw 安装".to_string(),
+        name: "OpenClaw Installation".to_string(),
         passed: openclaw_installed,
         message: if openclaw_installed {
-            "OpenClaw 已安装".to_string()
+            "OpenClaw is installed".to_string()
         } else {
-            "OpenClaw 未安装".to_string()
+            "OpenClaw is not installed".to_string()
         },
         suggestion: if openclaw_installed {
             None
         } else {
-            Some("运行: npm install -g openclaw".to_string())
+            Some("Run: npm install -g openclaw".to_string())
         },
     });
-    
-    // 检查 Node.js
+
+    // Check Node.js
     let node_check = shell::run_command_output("node", &["--version"]);
     results.push(DiagnosticResult {
         name: "Node.js".to_string(),
         passed: node_check.is_ok(),
         message: node_check
             .clone()
-            .unwrap_or_else(|_| "未安装".to_string()),
+            .unwrap_or_else(|_| "Not installed".to_string()),
         suggestion: if node_check.is_err() {
-            Some("请安装 Node.js 22+".to_string())
+            Some("Please install Node.js 22+".to_string())
         } else {
             None
         },
     });
-    
-    // 检查配置文件
+
+    // Check config file
     let config_path = platform::get_config_file_path();
     let config_exists = std::path::Path::new(&config_path).exists();
     results.push(DiagnosticResult {
-        name: "配置文件".to_string(),
+        name: "Config File".to_string(),
         passed: config_exists,
         message: if config_exists {
-            format!("配置文件存在: {}", config_path)
+            format!("Config file exists: {}", config_path)
         } else {
-            "配置文件不存在".to_string()
+            "Config file does not exist".to_string()
         },
         suggestion: if config_exists {
             None
         } else {
-            Some("运行 openclaw 初始化配置".to_string())
+            Some("Run openclaw to initialize config".to_string())
         },
     });
-    
-    // 检查环境变量文件
+
+    // Check environment variables file
     let env_path = platform::get_env_file_path();
     let env_exists = std::path::Path::new(&env_path).exists();
     results.push(DiagnosticResult {
-        name: "环境变量".to_string(),
+        name: "Environment Variables".to_string(),
         passed: env_exists,
         message: if env_exists {
-            format!("环境变量文件存在: {}", env_path)
+            format!("Environment file exists: {}", env_path)
         } else {
-            "环境变量文件不存在".to_string()
+            "Environment file does not exist".to_string()
         },
         suggestion: if env_exists {
             None
         } else {
-            Some("请配置 AI API Key".to_string())
+            Some("Please configure AI API Key".to_string())
         },
     });
-    
-    // 运行 openclaw doctor
+
+    // Run openclaw doctor
     if openclaw_installed {
         let doctor_result = shell::run_openclaw(&["doctor"]);
         results.push(DiagnosticResult {
@@ -171,25 +171,25 @@ pub async fn run_doctor() -> Result<Vec<DiagnosticResult>, String> {
     Ok(results)
 }
 
-/// 测试 AI 连接
+/// Test AI connection
 #[command]
 pub async fn test_ai_connection() -> Result<AITestResult, String> {
-    info!("[AI测试] 开始测试 AI 连接...");
-    
-    // 获取当前配置的 provider
+    info!("[AI Test] Starting AI connection test...");
+
+    // Get current configured provider
     let start = std::time::Instant::now();
-    
-    // 使用 openclaw 命令测试连接
-    info!("[AI测试] 执行: openclaw agent --local --to +1234567890 --message 回复 OK");
-    let result = shell::run_openclaw(&["agent", "--local", "--to", "+1234567890", "--message", "回复 OK"]);
-    
+
+    // Use openclaw command to test connection
+    info!("[AI Test] Executing: openclaw agent --local --to +1234567890 --message \"Reply OK\"");
+    let result = shell::run_openclaw(&["agent", "--local", "--to", "+1234567890", "--message", "Reply OK"]);
+
     let latency = start.elapsed().as_millis() as u64;
-    info!("[AI测试] 命令执行完成, 耗时: {}ms", latency);
-    
+    info!("[AI Test] Command execution completed, latency: {}ms", latency);
+
     match result {
         Ok(output) => {
-            debug!("[AI测试] 原始输出: {}", output);
-            // 过滤掉警告信息
+            debug!("[AI Test] Raw output: {}", output);
+            // Filter out warning messages
             let filtered: String = output
                 .lines()
                 .filter(|l: &&str| !l.contains("ExperimentalWarning"))
@@ -201,9 +201,9 @@ pub async fn test_ai_connection() -> Result<AITestResult, String> {
                 && !filtered.contains("403");
             
             if success {
-                info!("[AI测试] ✓ AI 连接测试成功");
+                info!("[AI Test] ✓ AI connection test successful");
             } else {
-                warn!("[AI测试] ✗ AI 连接测试失败: {}", filtered);
+                warn!("[AI Test] ✗ AI connection test failed: {}", filtered);
             }
             
             Ok(AITestResult {
@@ -226,105 +226,105 @@ pub async fn test_ai_connection() -> Result<AITestResult, String> {
     }
 }
 
-/// 获取渠道测试目标
+/// Get channel test target
 fn get_channel_test_target(channel_type: &str) -> Option<String> {
     let env_path = platform::get_env_file_path();
-    
-    // 根据渠道类型获取测试目标的环境变量
+
+    // Get environment variable for test target based on channel type
     let env_key = match channel_type.to_lowercase().as_str() {
         "telegram" => "OPENCLAW_TELEGRAM_USERID",
         "discord" => "OPENCLAW_DISCORD_TESTCHANNELID",
         "slack" => "OPENCLAW_SLACK_TESTCHANNELID",
         "feishu" => "OPENCLAW_FEISHU_TESTCHATID",
-        // WhatsApp 是扫码登录，不需要测试目标发送消息
+        // WhatsApp uses QR code login, no test target needed to send messages
         "whatsapp" => return None,
-        // iMessage 也不需要测试目标
+        // iMessage also doesn't need test target
         "imessage" => return None,
         _ => return None,
     };
-    
+
     crate::utils::file::read_env_value(&env_path, env_key)
 }
 
-/// 检查渠道是否需要发送测试消息
+/// Check if channel needs to send test message
 fn channel_needs_send_test(channel_type: &str) -> bool {
     match channel_type.to_lowercase().as_str() {
-        // 这些渠道需要发送测试消息来验证
+        // These channels need to send test messages for verification
         "telegram" | "discord" | "slack" | "feishu" => true,
-        // WhatsApp 和 iMessage 只检查状态，不发送测试消息
+        // WhatsApp and iMessage only check status, don't send test messages
         "whatsapp" | "imessage" => false,
         _ => false,
     }
 }
 
-/// 从文本输出解析渠道状态
-/// 格式: "- Telegram default: enabled, configured, mode:polling, token:config"
+/// Parse channel status from text output
+/// Format: "- Telegram default: enabled, configured, mode:polling, token:config"
 fn parse_channel_status_text(output: &str, channel_type: &str) -> Option<(bool, bool, bool, String)> {
     let channel_lower = channel_type.to_lowercase();
-    
+
     for line in output.lines() {
         let line = line.trim();
-        // 匹配 "- Telegram default: ..." 格式
+        // Match "- Telegram default: ..." format
         if line.starts_with("- ") && line.to_lowercase().contains(&channel_lower) {
-            // 解析状态
+            // Parse status
             let enabled = line.contains("enabled");
             let configured = line.contains("configured") && !line.contains("not configured");
             let linked = line.contains("linked");
-            
-            // 提取状态描述（冒号后面的部分）
+
+            // Extract status description (part after colon)
             let status_part = line.split(':').skip(1).collect::<Vec<&str>>().join(":");
             let status_msg = status_part.trim().to_string();
-            
+
             return Some((enabled, configured, linked, status_msg));
         }
     }
     None
 }
 
-/// 测试渠道连接（检查状态并发送测试消息）
+/// Test channel connection (check status and send test message)
 #[command]
 pub async fn test_channel(channel_type: String) -> Result<ChannelTestResult, String> {
-    info!("[渠道测试] 测试渠道: {}", channel_type);
+    info!("[Channel Test] Testing channel: {}", channel_type);
     let channel_lower = channel_type.to_lowercase();
-    
-    // 使用 openclaw channels status 检查渠道状态（不加 --json，因为可能不支持）
-    info!("[渠道测试] 步骤1: 检查渠道状态...");
+
+    // Use openclaw channels status to check channel status (no --json as it may not be supported)
+    info!("[Channel Test] Step 1: Checking channel status...");
     let status_result = shell::run_openclaw(&["channels", "status"]);
-    
+
     let mut channel_ok = false;
     let mut status_message = String::new();
     let mut debug_info = String::new();
-    
+
     match &status_result {
         Ok(output) => {
-            info!("[渠道测试] status 命令执行成功");
-            
-            // 尝试从文本输出解析状态
+            info!("[Channel Test] status command executed successfully");
+
+            // Try to parse status from text output
             if let Some((enabled, configured, linked, status_msg)) = parse_channel_status_text(output, &channel_type) {
                 debug_info = format!("enabled={}, configured={}, linked={}", enabled, configured, linked);
-                info!("[渠道测试] {} 状态: {}", channel_type, debug_info);
-                
+                info!("[Channel Test] {} status: {}", channel_type, debug_info);
+
                 if !configured {
-                    info!("[渠道测试] {} 未配置", channel_type);
+                    info!("[Channel Test] {} not configured", channel_type);
                     return Ok(ChannelTestResult {
                         success: false,
                         channel: channel_type.clone(),
-                        message: format!("{} 未配置", channel_type),
-                        error: Some(format!("请运行: openclaw channels add --channel {}", channel_lower)),
+                        message: format!("{} not configured", channel_type),
+                        error: Some(format!("Please run: openclaw channels add --channel {}", channel_lower)),
                     });
                 }
-                
-                // 已配置就认为状态OK（Gateway可能没启动，但配置是有的）
+
+                // If configured, consider status OK (Gateway may not be running, but config exists)
                 channel_ok = configured;
                 status_message = if linked {
-                    "已链接".to_string()
+                    "Linked".to_string()
                 } else if !status_msg.is_empty() {
                     status_msg
                 } else {
-                    "已配置".to_string()
+                    "Configured".to_string()
                 };
             } else {
-                // 尝试 JSON 解析（作为备选）
+                // Try JSON parsing (as fallback)
                 if let Some(json_str) = extract_json_from_output(output) {
                     if let Ok(json) = serde_json::from_str::<serde_json::Value>(&json_str) {
                         if let Some(channels) = json.get("channels").and_then(|c| c.as_object()) {
@@ -332,64 +332,64 @@ pub async fn test_channel(channel_type: String) -> Result<ChannelTestResult, Str
                                 let configured = ch.get("configured").and_then(|v| v.as_bool()).unwrap_or(false);
                                 let linked = ch.get("linked").and_then(|v| v.as_bool()).unwrap_or(false);
                                 channel_ok = configured;
-                                status_message = if linked { "已链接".to_string() } else { "已配置".to_string() };
+                                status_message = if linked { "Linked".to_string() } else { "Configured".to_string() };
                             }
                         }
                     }
                 }
-                
+
                 if !channel_ok {
-                    debug_info = format!("无法解析 {} 的状态", channel_type);
-                    info!("[渠道测试] {}", debug_info);
+                    debug_info = format!("Unable to parse {} status", channel_type);
+                    info!("[Channel Test] {}", debug_info);
                 }
             }
         }
         Err(e) => {
-            debug_info = format!("命令执行失败: {}", e);
-            info!("[渠道测试] {}", debug_info);
+            debug_info = format!("Command execution failed: {}", e);
+            info!("[Channel Test] {}", debug_info);
         }
     }
-    
-    // 如果渠道状态不 OK，直接返回失败
+
+    // If channel status is not OK, return failure directly
     if !channel_ok {
-        info!("[渠道测试] {} 状态检查失败，不发送测试消息", channel_type);
+        info!("[Channel Test] {} status check failed, not sending test message", channel_type);
         let error_msg = if debug_info.is_empty() {
-            "渠道未运行或未配置".to_string()
+            "Channel not running or not configured".to_string()
         } else {
             debug_info
         };
         return Ok(ChannelTestResult {
             success: false,
             channel: channel_type.clone(),
-            message: format!("{} 未连接", channel_type),
+            message: format!("{} not connected", channel_type),
             error: Some(error_msg),
         });
     }
-    
-    info!("[渠道测试] {} 状态正常 ({})", channel_type, status_message);
-    
-    // 对于 WhatsApp 和 iMessage，只返回状态检查结果，不发送测试消息
+
+    info!("[Channel Test] {} status OK ({})", channel_type, status_message);
+
+    // For WhatsApp and iMessage, only return status check result, don't send test message
     if !channel_needs_send_test(&channel_type) {
-        info!("[渠道测试] {} 不需要发送测试消息（状态检查即可）", channel_type);
+        info!("[Channel Test] {} doesn't need test message (status check only)", channel_type);
         return Ok(ChannelTestResult {
             success: true,
             channel: channel_type.clone(),
-            message: format!("{} 状态正常 ({})", channel_type, status_message),
+            message: format!("{} status OK ({})", channel_type, status_message),
             error: None,
         });
     }
-    
-    // 尝试发送测试消息
-    info!("[渠道测试] 步骤2: 获取测试目标...");
+
+    // Try to send test message
+    info!("[Channel Test] Step 2: Getting test target...");
     let test_target = get_channel_test_target(&channel_type);
-    
+
     if let Some(target) = test_target {
-        info!("[渠道测试] 步骤3: 发送测试消息到 {}...", target);
+        info!("[Channel Test] Step 3: Sending test message to {}...", target);
         let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S");
-        let message = format!("🤖 OpenClaw 测试消息\n\n✅ 连接成功！\n⏰ {}", timestamp);
-        
-        // 使用 openclaw message send 发送测试消息
-        info!("[渠道测试] 执行: openclaw message send --channel {} --target {} ...", channel_lower, target);
+        let message = format!("🤖 OpenClaw Test Message\n\n✅ Connection successful!\n⏰ {}", timestamp);
+
+        // Use openclaw message send to send test message
+        info!("[Channel Test] Executing: openclaw message send --channel {} --target {} ...", channel_lower, target);
         let send_result = shell::run_openclaw(&[
             "message", "send",
             "--channel", &channel_lower,
@@ -397,16 +397,16 @@ pub async fn test_channel(channel_type: String) -> Result<ChannelTestResult, Str
             "--message", &message,
             "--json"
         ]);
-        
+
         match send_result {
             Ok(output) => {
-                info!("[渠道测试] 发送命令输出长度: {}", output.len());
-                
-                // 检查发送是否成功
+                info!("[Channel Test] Send command output length: {}", output.len());
+
+                // Check if send was successful
                 let send_ok = if let Some(json_str) = extract_json_from_output(&output) {
-                    info!("[渠道测试] 提取到 JSON: {}", json_str);
+                    info!("[Channel Test] Extracted JSON: {}", json_str);
                     if let Ok(json) = serde_json::from_str::<serde_json::Value>(&json_str) {
-                        // 检查各种成功标志
+                        // Check various success indicators
                         let has_ok = json.get("ok").and_then(|v| v.as_bool()).unwrap_or(false);
                         let has_success = json.get("success").and_then(|v| v.as_bool()).unwrap_or(false);
                         let has_message_id = json.get("messageId").is_some();
@@ -417,75 +417,75 @@ pub async fn test_channel(channel_type: String) -> Result<ChannelTestResult, Str
                             .and_then(|r| r.get("messageId"))
                             .is_some();
                         
-                        info!("[渠道测试] 判断条件: ok={}, success={}, messageId={}, payload.ok={}, payload.messageId={}, payload.result.messageId={}",
+                        info!("[Channel Test] Condition check: ok={}, success={}, messageId={}, payload.ok={}, payload.messageId={}, payload.result.messageId={}",
                             has_ok, has_success, has_message_id, has_payload_ok, has_payload_message_id, has_payload_result_message_id);
-                        
+
                         has_ok || has_success || has_message_id || has_payload_ok || has_payload_message_id || has_payload_result_message_id
                     } else {
-                        info!("[渠道测试] JSON 解析失败");
+                        info!("[Channel Test] JSON parsing failed");
                         false
                     }
                 } else {
-                    info!("[渠道测试] 未提取到 JSON，检查关键词");
-                    // 如果没有 JSON，检查是否有错误关键词
+                    info!("[Channel Test] No JSON extracted, checking keywords");
+                    // If no JSON, check for error keywords
                     !output.to_lowercase().contains("error") && !output.to_lowercase().contains("failed")
                 };
-                
+
                 if send_ok {
-                    info!("[渠道测试] ✓ {} 测试消息发送成功", channel_type);
+                    info!("[Channel Test] ✓ {} test message sent successfully", channel_type);
                     Ok(ChannelTestResult {
                         success: true,
                         channel: channel_type.clone(),
-                        message: format!("{} 测试消息已发送 ({})", channel_type, status_message),
+                        message: format!("{} test message sent ({})", channel_type, status_message),
                         error: None,
                     })
                 } else {
-                    info!("[渠道测试] ✗ {} 测试消息发送失败", channel_type);
+                    info!("[Channel Test] ✗ {} test message send failed", channel_type);
                     Ok(ChannelTestResult {
                         success: false,
                         channel: channel_type.clone(),
-                        message: format!("{} 消息发送失败", channel_type),
+                        message: format!("{} message send failed", channel_type),
                         error: Some(output),
                     })
                 }
             }
             Err(e) => {
-                info!("[渠道测试] ✗ {} 发送命令执行失败: {}", channel_type, e);
+                info!("[Channel Test] ✗ {} send command execution failed: {}", channel_type, e);
                 Ok(ChannelTestResult {
                     success: false,
                     channel: channel_type.clone(),
-                    message: format!("{} 消息发送失败", channel_type),
+                    message: format!("{} message send failed", channel_type),
                     error: Some(e),
                 })
             }
         }
     } else {
-        // 没有配置测试目标，返回状态但提示需要配置测试目标
+        // No test target configured, return status but hint that test target needs to be configured
         let hint = match channel_lower.as_str() {
-            "telegram" => "请配置 OPENCLAW_TELEGRAM_USERID",
-            "discord" => "请配置 OPENCLAW_DISCORD_TESTCHANNELID",
-            "slack" => "请配置 OPENCLAW_SLACK_TESTCHANNELID",
-            "feishu" => "请配置 OPENCLAW_FEISHU_TESTCHATID",
-            _ => "请配置测试目标",
+            "telegram" => "Please configure OPENCLAW_TELEGRAM_USERID",
+            "discord" => "Please configure OPENCLAW_DISCORD_TESTCHANNELID",
+            "slack" => "Please configure OPENCLAW_SLACK_TESTCHANNELID",
+            "feishu" => "Please configure OPENCLAW_FEISHU_TESTCHATID",
+            _ => "Please configure test target",
         };
-        
-        info!("[渠道测试] {} 未配置测试目标，跳过发送消息 ({})", channel_type, hint);
+
+        info!("[Channel Test] {} test target not configured, skipping message send ({})", channel_type, hint);
         Ok(ChannelTestResult {
             success: true,
             channel: channel_type.clone(),
-            message: format!("{} 状态正常 ({}) - {}", channel_type, status_message, hint),
+            message: format!("{} status OK ({}) - {}", channel_type, status_message, hint),
             error: None,
         })
     }
 }
 
-/// 发送测试消息到渠道
+/// Send test message to channel
 #[command]
 pub async fn send_test_message(channel_type: String, target: String) -> Result<ChannelTestResult, String> {
     let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S");
-    let message = format!("🤖 OpenClaw 测试消息\n\n✅ 连接成功！\n⏰ {}", timestamp);
-    
-    // 使用 openclaw message send 命令发送测试消息
+    let message = format!("🤖 OpenClaw Test Message\n\n✅ Connection successful!\n⏰ {}", timestamp);
+
+    // Use openclaw message send command to send test message
     let send_result = shell::run_openclaw(&[
         "message", "send",
         "--channel", &channel_type,
@@ -493,10 +493,10 @@ pub async fn send_test_message(channel_type: String, target: String) -> Result<C
         "--message", &message,
         "--json"
     ]);
-    
+
     match send_result {
         Ok(output) => {
-            // 尝试从混合输出中提取并解析 JSON 结果
+            // Try to extract and parse JSON result from mixed output
             let success = if let Some(json_str) = extract_json_from_output(&output) {
                 if let Ok(json) = serde_json::from_str::<serde_json::Value>(&json_str) {
                     json.get("success").and_then(|v| v.as_bool()).unwrap_or(false)
@@ -506,35 +506,35 @@ pub async fn send_test_message(channel_type: String, target: String) -> Result<C
                     false
                 }
             } else {
-                // 非 JSON 输出，检查是否包含错误关键词
+                // Non-JSON output, check for error keywords
                 !output.to_lowercase().contains("error") && !output.to_lowercase().contains("failed")
             };
-            
+
             Ok(ChannelTestResult {
                 success,
                 channel: channel_type,
-                message: if success { "消息已发送".to_string() } else { "消息发送失败".to_string() },
+                message: if success { "Message sent".to_string() } else { "Message send failed".to_string() },
                 error: if success { None } else { Some(output) },
             })
         }
         Err(e) => Ok(ChannelTestResult {
             success: false,
             channel: channel_type,
-            message: "发送失败".to_string(),
+            message: "Send failed".to_string(),
             error: Some(e),
         }),
     }
 }
 
-/// 获取系统信息
+/// Get system information
 #[command]
 pub async fn get_system_info() -> Result<SystemInfo, String> {
-    info!("[系统信息] 获取系统信息...");
+    info!("[System Info] Getting system information...");
     let os = platform::get_os();
     let arch = platform::get_arch();
-    info!("[系统信息] OS: {}, Arch: {}", os, arch);
-    
-    // 获取 OS 版本
+    info!("[System Info] OS: {}, Arch: {}", os, arch);
+
+    // Get OS version
     let os_version = if platform::is_macos() {
         shell::run_command_output("sw_vers", &["-productVersion"])
             .unwrap_or_else(|_| "unknown".to_string())
@@ -565,36 +565,36 @@ pub async fn get_system_info() -> Result<SystemInfo, String> {
     })
 }
 
-/// 启动渠道登录（如 WhatsApp 扫码）
+/// Start channel login (e.g., WhatsApp QR code scan)
 #[command]
 pub async fn start_channel_login(channel_type: String) -> Result<String, String> {
-    info!("[渠道登录] 开始渠道登录流程: {}", channel_type);
-    
+    info!("[Channel Login] Starting channel login flow: {}", channel_type);
+
     match channel_type.as_str() {
         "whatsapp" => {
-            info!("[渠道登录] WhatsApp 登录流程...");
-            // 先在后台启用插件
-            info!("[渠道登录] 启用 whatsapp 插件...");
+            info!("[Channel Login] WhatsApp login flow...");
+            // First enable plugin in background
+            info!("[Channel Login] Enabling whatsapp plugin...");
             let _ = shell::run_openclaw(&["plugins", "enable", "whatsapp"]);
-            
+
             #[cfg(target_os = "macos")]
             {
                 let env_path = platform::get_env_file_path();
-                // 创建一个临时脚本文件
-                // 流程：1. 启用插件 2. 重启 Gateway 3. 登录
+                // Create a temporary script file
+                // Flow: 1. Enable plugin 2. Restart Gateway 3. Login
                 let script_content = format!(
                     r#"#!/bin/bash
 source {} 2>/dev/null
 clear
 echo "╔════════════════════════════════════════════════════════╗"
-echo "║           📱 WhatsApp 登录向导                          ║"
+echo "║           📱 WhatsApp Login Wizard                     ║"
 echo "╚════════════════════════════════════════════════════════╝"
 echo ""
 
-echo "步骤 1/3: 启用 WhatsApp 插件..."
+echo "Step 1/3: Enabling WhatsApp plugin..."
 openclaw plugins enable whatsapp 2>/dev/null || true
 
-# 确保 whatsapp 在 plugins.allow 数组中
+# Ensure whatsapp is in plugins.allow array
 python3 << 'PYEOF'
 import json
 import os
@@ -605,129 +605,129 @@ plugin_id = "whatsapp"
 try:
     with open(config_path, 'r') as f:
         config = json.load(f)
-    
-    # 设置 plugins.allow 和 plugins.entries
+
+    # Set plugins.allow and plugins.entries
     if 'plugins' not in config:
         config['plugins'] = {{'allow': [], 'entries': {{}}}}
     if 'allow' not in config['plugins']:
         config['plugins']['allow'] = []
     if 'entries' not in config['plugins']:
         config['plugins']['entries'] = {{}}
-    
+
     if plugin_id not in config['plugins']['allow']:
         config['plugins']['allow'].append(plugin_id)
-    
+
     config['plugins']['entries'][plugin_id] = {{'enabled': True}}
-    
-    # 确保 channels.whatsapp 存在（但不设置 enabled，WhatsApp 不支持这个键）
+
+    # Ensure channels.whatsapp exists (but don't set enabled, WhatsApp doesn't support this key)
     if 'channels' not in config:
         config['channels'] = {{}}
     if plugin_id not in config['channels']:
         config['channels'][plugin_id] = {{'dmPolicy': 'pairing', 'groupPolicy': 'allowlist'}}
-    
+
     with open(config_path, 'w') as f:
         json.dump(config, f, indent=2, ensure_ascii=False)
-    print("配置已更新")
+    print("Config updated")
 except Exception as e:
     print(f"Warning: {{e}}")
 PYEOF
 
-echo "✅ 插件已启用"
+echo "✅ Plugin enabled"
 echo ""
 
-echo "步骤 2/3: 重启 Gateway 使插件生效..."
-# 使用 openclaw 命令停止和启动 gateway
+echo "Step 2/3: Restarting Gateway to apply plugin..."
+# Use openclaw command to stop and start gateway
 openclaw gateway stop 2>/dev/null || true
 sleep 2
-# 启动 gateway 服务
+# Start gateway service
 openclaw gateway start 2>/dev/null || openclaw gateway --port 18789 &
 sleep 3
-echo "✅ Gateway 已重启"
+echo "✅ Gateway restarted"
 echo ""
 
-echo "步骤 3/3: 启动 WhatsApp 登录..."
-echo "请使用 WhatsApp 手机 App 扫描下方二维码"
+echo "Step 3/3: Starting WhatsApp login..."
+echo "Please scan the QR code below using WhatsApp mobile app"
 echo ""
 openclaw channels login --channel whatsapp --verbose
 echo ""
 echo "════════════════════════════════════════════════════════"
-echo "登录完成！"
+echo "Login complete!"
 echo ""
-read -p "按回车键关闭此窗口..."
+read -p "Press Enter to close this window..."
 "#,
                     env_path
                 );
-                
+
                 let script_path = "/tmp/openclaw_whatsapp_login.command";
                 std::fs::write(script_path, script_content)
-                    .map_err(|e| format!("创建脚本失败: {}", e))?;
-                
-                // 设置可执行权限
+                    .map_err(|e| format!("Failed to create script: {}", e))?;
+
+                // Set executable permission
                 std::process::Command::new("chmod")
                     .args(["+x", script_path])
                     .output()
-                    .map_err(|e| format!("设置权限失败: {}", e))?;
-                
-                // 使用 open 命令打开 .command 文件（会自动在新终端窗口中执行）
+                    .map_err(|e| format!("Failed to set permission: {}", e))?;
+
+                // Use open command to open .command file (will automatically execute in new terminal window)
                 std::process::Command::new("open")
                     .arg(script_path)
                     .spawn()
-                    .map_err(|e| format!("启动终端失败: {}", e))?;
+                    .map_err(|e| format!("Failed to launch terminal: {}", e))?;
             }
-            
+
             #[cfg(target_os = "linux")]
             {
                 let env_path = platform::get_env_file_path();
-                // 创建脚本
+                // Create script
                 let script_content = format!(
                     r#"#!/bin/bash
 source {} 2>/dev/null
 clear
-echo "📱 WhatsApp 登录向导"
+echo "📱 WhatsApp Login Wizard"
 echo ""
 openclaw channels login --channel whatsapp --verbose
 echo ""
-read -p "按回车键关闭..."
+read -p "Press Enter to close..."
 "#,
                     env_path
                 );
-                
+
                 let script_path = "/tmp/openclaw_whatsapp_login.sh";
                 std::fs::write(script_path, &script_content)
-                    .map_err(|e| format!("创建脚本失败: {}", e))?;
-                
+                    .map_err(|e| format!("Failed to create script: {}", e))?;
+
                 std::process::Command::new("chmod")
                     .args(["+x", script_path])
                     .output()
-                    .map_err(|e| format!("设置权限失败: {}", e))?;
-                
-                // 尝试不同的终端模拟器
+                    .map_err(|e| format!("Failed to set permission: {}", e))?;
+
+                // Try different terminal emulators
                 let terminals = ["gnome-terminal", "xfce4-terminal", "konsole", "xterm"];
                 let mut launched = false;
-                
+
                 for term in terminals {
                     let result = std::process::Command::new(term)
                         .args(["--", script_path])
                         .spawn();
-                    
+
                     if result.is_ok() {
                         launched = true;
                         break;
                     }
                 }
-                
+
                 if !launched {
-                    return Err("无法启动终端，请手动运行: openclaw channels login --channel whatsapp".to_string());
+                    return Err("Unable to launch terminal, please run manually: openclaw channels login --channel whatsapp".to_string());
                 }
             }
-            
+
             #[cfg(target_os = "windows")]
             {
-                return Err("Windows 暂不支持自动启动终端，请手动运行: openclaw channels login --channel whatsapp".to_string());
+                return Err("Windows does not support automatic terminal launch, please run manually: openclaw channels login --channel whatsapp".to_string());
             }
-            
-            Ok("已在新终端窗口中启动 WhatsApp 登录，请查看弹出的终端窗口并扫描二维码".to_string())
+
+            Ok("WhatsApp login started in new terminal window, please check the popup terminal window and scan the QR code".to_string())
         }
-        _ => Err(format!("不支持 {} 的登录向导", channel_type)),
+        _ => Err(format!("Login wizard not supported for {}", channel_type)),
     }
 }

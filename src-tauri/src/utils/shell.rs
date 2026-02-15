@@ -8,25 +8,25 @@ use log::{info, debug, warn};
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
 
-/// Windows CREATE_NO_WINDOW 标志，用于隐藏控制台窗口
+/// Windows CREATE_NO_WINDOW flag, used to hide console window
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x08000000;
 
-/// 获取扩展的 PATH 环境变量
-/// GUI 应用启动时可能没有继承用户 shell 的 PATH，需要手动添加常见路径
+/// Get extended PATH environment variable
+/// GUI applications may not inherit user shell's PATH on startup, need to manually add common paths
 pub fn get_extended_path() -> String {
     let mut paths = Vec::new();
     
-    // 添加常见的可执行文件路径
+    // Add common executable paths
     paths.push("/opt/homebrew/bin".to_string());  // Homebrew on Apple Silicon
-    paths.push("/usr/local/bin".to_string());      // Homebrew on Intel / 常规安装
+    paths.push("/usr/local/bin".to_string());      // Homebrew on Intel / regular installation
     paths.push("/usr/bin".to_string());
     paths.push("/bin".to_string());
     
     if let Some(home) = dirs::home_dir() {
         let home_str = home.display().to_string();
         
-        // nvm 路径（尝试获取当前版本）
+        // nvm path (try to get current version)
         let nvm_default = format!("{}/.nvm/alias/default", home_str);
         if let Ok(version) = std::fs::read_to_string(&nvm_default) {
             let version = version.trim();
@@ -34,12 +34,12 @@ pub fn get_extended_path() -> String {
                 paths.insert(0, format!("{}/.nvm/versions/node/v{}/bin", home_str, version));
             }
         }
-        // 也添加常见 nvm 版本路径
+        // Also add common nvm version paths
         for version in ["v22.22.0", "v22.12.0", "v22.11.0", "v22.0.0", "v23.0.0"] {
             let nvm_bin = format!("{}/.nvm/versions/node/{}/bin", home_str, version);
             if std::path::Path::new(&nvm_bin).exists() {
                 paths.insert(0, nvm_bin);
-                break; // 只添加第一个存在的
+                break; // Only add the first existing one
             }
         }
         
@@ -56,7 +56,7 @@ pub fn get_extended_path() -> String {
         paths.push(format!("{}/.local/share/mise/shims", home_str));
     }
     
-    // 获取当前 PATH 并合并
+    // Get current PATH and merge
     let current_path = std::env::var("PATH").unwrap_or_default();
     if !current_path.is_empty() {
         paths.push(current_path);
@@ -65,12 +65,12 @@ pub fn get_extended_path() -> String {
     paths.join(":")
 }
 
-/// 执行 Shell 命令（带扩展 PATH）
+/// Execute shell command (with extended PATH)
 pub fn run_command(cmd: &str, args: &[&str]) -> io::Result<Output> {
     let mut command = Command::new(cmd);
     command.args(args);
     
-    // 在非 Windows 系统上使用扩展的 PATH
+    // Use extended PATH on non-Windows systems
     #[cfg(not(windows))]
     {
         let extended_path = get_extended_path();
@@ -83,7 +83,7 @@ pub fn run_command(cmd: &str, args: &[&str]) -> io::Result<Output> {
     command.output()
 }
 
-/// 执行 Shell 命令并获取输出字符串
+/// Execute shell command and get output string
 pub fn run_command_output(cmd: &str, args: &[&str]) -> Result<String, String> {
     match run_command(cmd, args) {
         Ok(output) => {
@@ -97,12 +97,12 @@ pub fn run_command_output(cmd: &str, args: &[&str]) -> Result<String, String> {
     }
 }
 
-/// 执行 Bash 命令（带扩展 PATH）
+/// Execute bash command (with extended PATH)
 pub fn run_bash(script: &str) -> io::Result<Output> {
     let mut command = Command::new("bash");
     command.arg("-c").arg(script);
     
-    // 在非 Windows 系统上使用扩展的 PATH
+    // Use extended PATH on non-Windows systems
     #[cfg(not(windows))]
     {
         let extended_path = get_extended_path();
@@ -115,7 +115,7 @@ pub fn run_bash(script: &str) -> io::Result<Output> {
     command.output()
 }
 
-/// 执行 Bash 命令并获取输出
+/// Execute bash command and get output
 pub fn run_bash_output(script: &str) -> Result<String, String> {
     match run_bash(script) {
         Ok(output) => {
@@ -134,7 +134,7 @@ pub fn run_bash_output(script: &str) -> Result<String, String> {
     }
 }
 
-/// 执行 cmd.exe 命令（Windows）- 避免 PowerShell 执行策略问题
+/// Execute cmd.exe command (Windows) - avoid PowerShell execution policy issues
 pub fn run_cmd(script: &str) -> io::Result<Output> {
     let mut cmd = Command::new("cmd");
     cmd.args(["/c", script]);
@@ -145,7 +145,7 @@ pub fn run_cmd(script: &str) -> io::Result<Output> {
     cmd.output()
 }
 
-/// 执行 cmd.exe 命令并获取输出（Windows）
+/// Execute cmd.exe command and get output (Windows)
 pub fn run_cmd_output(script: &str) -> Result<String, String> {
     match run_cmd(script) {
         Ok(output) => {
@@ -169,11 +169,11 @@ pub fn run_cmd_output(script: &str) -> Result<String, String> {
     }
 }
 
-/// 执行 PowerShell 命令（Windows）- 仅在需要 PowerShell 特定功能时使用
-/// 注意：某些 Windows 系统的 PowerShell 执行策略可能禁止运行脚本
+/// Execute PowerShell command (Windows) - use only when PowerShell-specific features are needed
+/// Note: PowerShell execution policy on some Windows systems may prohibit running scripts
 pub fn run_powershell(script: &str) -> io::Result<Output> {
     let mut cmd = Command::new("powershell");
-    // 使用 -ExecutionPolicy Bypass 绕过执行策略限制
+    // Use -ExecutionPolicy Bypass to bypass execution policy restrictions
     cmd.args(["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script]);
     
     #[cfg(windows)]
@@ -182,7 +182,7 @@ pub fn run_powershell(script: &str) -> io::Result<Output> {
     cmd.output()
 }
 
-/// 执行 PowerShell 命令并获取输出（Windows）
+/// Execute PowerShell command and get output (Windows)
 pub fn run_powershell_output(script: &str) -> Result<String, String> {
     match run_powershell(script) {
         Ok(output) => {
@@ -206,8 +206,8 @@ pub fn run_powershell_output(script: &str) -> Result<String, String> {
     }
 }
 
-/// 跨平台执行脚本命令
-/// Windows 上使用 cmd.exe（避免 PowerShell 执行策略问题）
+/// Cross-platform script command execution
+/// Uses cmd.exe on Windows (avoid PowerShell execution policy issues)
 pub fn run_script_output(script: &str) -> Result<String, String> {
     if platform::is_windows() {
         run_cmd_output(script)
@@ -216,7 +216,7 @@ pub fn run_script_output(script: &str) -> Result<String, String> {
     }
 }
 
-/// 后台执行命令（不等待结果）
+/// Execute command in background (do not wait for result)
 pub fn spawn_background(script: &str) -> io::Result<()> {
     if platform::is_windows() {
         let mut cmd = Command::new("cmd");
@@ -235,39 +235,39 @@ pub fn spawn_background(script: &str) -> io::Result<()> {
     Ok(())
 }
 
-/// 获取 openclaw 可执行文件路径
-/// 检测多个可能的安装路径，因为 GUI 应用不继承用户 shell 的 PATH
+/// Get openclaw executable path
+/// Detects multiple possible installation paths, since GUI apps don't inherit user shell's PATH
 pub fn get_openclaw_path() -> Option<String> {
-    // Windows: 检查常见的 npm 全局安装路径
+    // Windows: check common npm global installation paths
     if platform::is_windows() {
         let possible_paths = get_windows_openclaw_paths();
         for path in possible_paths {
             if std::path::Path::new(&path).exists() {
-                info!("[Shell] 在 {} 找到 openclaw", path);
+                info!("[Shell] Found openclaw at {}", path);
                 return Some(path);
             }
         }
     } else {
-        // Unix: 检查常见的 npm 全局安装路径
+        // Unix: check common npm global installation paths
         let possible_paths = get_unix_openclaw_paths();
         for path in possible_paths {
             if std::path::Path::new(&path).exists() {
-                info!("[Shell] 在 {} 找到 openclaw", path);
+                info!("[Shell] Found openclaw at {}", path);
                 return Some(path);
             }
         }
     }
     
-    // 回退：检查是否在 PATH 中
+    // Fallback: check if it's in PATH
     if command_exists("openclaw") {
         return Some("openclaw".to_string());
     }
     
-    // 最后尝试：通过用户 shell 查找
+    // Last resort: search via user shell
     if !platform::is_windows() {
         if let Ok(path) = run_bash_output("source ~/.zshrc 2>/dev/null || source ~/.bashrc 2>/dev/null; which openclaw 2>/dev/null") {
             if !path.is_empty() && std::path::Path::new(&path).exists() {
-                info!("[Shell] 通过用户 shell 找到 openclaw: {}", path);
+                info!("[Shell] Found openclaw via user shell: {}", path);
                 return Some(path);
             }
         }
@@ -276,11 +276,11 @@ pub fn get_openclaw_path() -> Option<String> {
     None
 }
 
-/// 获取 Unix 系统上可能的 openclaw 安装路径
+/// Get possible openclaw installation paths on Unix systems
 fn get_unix_openclaw_paths() -> Vec<String> {
     let mut paths = Vec::new();
     
-    // npm 全局安装路径
+    // npm global installation paths
     paths.push("/usr/local/bin/openclaw".to_string());
     paths.push("/opt/homebrew/bin/openclaw".to_string()); // Homebrew on Apple Silicon
     paths.push("/usr/bin/openclaw".to_string());
@@ -288,16 +288,16 @@ fn get_unix_openclaw_paths() -> Vec<String> {
     if let Some(home) = dirs::home_dir() {
         let home_str = home.display().to_string();
         
-        // npm 全局安装到用户目录
+        // npm global installation to user directory
         paths.push(format!("{}/.npm-global/bin/openclaw", home_str));
-        
-        // nvm 安装的 npm 全局包（需要找到正确的 node 版本目录）
-        // 先检查常见版本
+
+        // npm global packages installed via nvm (need to find correct node version directory)
+        // First check common versions
         for version in ["v22.0.0", "v22.1.0", "v22.2.0", "v22.11.0", "v22.12.0", "v23.0.0"] {
             paths.push(format!("{}/.nvm/versions/node/{}/bin/openclaw", home_str, version));
         }
         
-        // 检查 nvm current（尝试读取 .nvmrc 或 default）
+        // Check nvm current (try reading .nvmrc or default)
         let nvm_default = format!("{}/.nvm/alias/default", home_str);
         if let Ok(version) = std::fs::read_to_string(&nvm_default) {
             let version = version.trim();
@@ -312,9 +312,9 @@ fn get_unix_openclaw_paths() -> Vec<String> {
         // volta
         paths.push(format!("{}/.volta/bin/openclaw", home_str));
         
-        // pnpm 全局安装
+        // pnpm global installation
         paths.push(format!("{}/.pnpm/bin/openclaw", home_str));
-        paths.push(format!("{}/Library/pnpm/openclaw", home_str)); // macOS pnpm 默认路径
+        paths.push(format!("{}/Library/pnpm/openclaw", home_str)); // macOS pnpm default path
         
         // asdf
         paths.push(format!("{}/.asdf/shims/openclaw", home_str));
@@ -322,7 +322,7 @@ fn get_unix_openclaw_paths() -> Vec<String> {
         // mise (formerly rtx)
         paths.push(format!("{}/.local/share/mise/shims/openclaw", home_str));
         
-        // yarn 全局安装
+        // yarn global installation
         paths.push(format!("{}/.yarn/bin/openclaw", home_str));
         paths.push(format!("{}/.config/yarn/global/node_modules/.bin/openclaw", home_str));
     }
@@ -330,42 +330,42 @@ fn get_unix_openclaw_paths() -> Vec<String> {
     paths
 }
 
-/// 获取 Windows 上可能的 openclaw 安装路径
+/// Get possible openclaw installation paths on Windows
 fn get_windows_openclaw_paths() -> Vec<String> {
     let mut paths = Vec::new();
     
-    // 1. nvm4w 安装路径
+    // 1. nvm4w installation path
     paths.push("C:\\nvm4w\\nodejs\\openclaw.cmd".to_string());
     
-    // 2. 用户目录下的 npm 全局路径
+    // 2. npm global path in user directory
     if let Some(home) = dirs::home_dir() {
         let npm_path = format!("{}\\AppData\\Roaming\\npm\\openclaw.cmd", home.display());
         paths.push(npm_path);
     }
     
-    // 3. Program Files 下的 nodejs
+    // 3. nodejs in Program Files
     paths.push("C:\\Program Files\\nodejs\\openclaw.cmd".to_string());
     
     paths
 }
 
-/// 执行 openclaw 命令并获取输出
+/// Execute openclaw command and get output
 pub fn run_openclaw(args: &[&str]) -> Result<String, String> {
-    debug!("[Shell] 执行 openclaw 命令: {:?}", args);
+    debug!("[Shell] Executing openclaw command: {:?}", args);
     
     let openclaw_path = get_openclaw_path().ok_or_else(|| {
-        warn!("[Shell] 找不到 openclaw 命令");
-        "找不到 openclaw 命令，请确保已通过 npm install -g openclaw 安装".to_string()
+        warn!("[Shell] Cannot find openclaw command");
+        "Cannot find openclaw command, please ensure it is installed via npm install -g openclaw".to_string()
     })?;
     
-    debug!("[Shell] openclaw 路径: {}", openclaw_path);
+    debug!("[Shell] openclaw path: {}", openclaw_path);
     
-    // 获取扩展的 PATH，确保能找到 node
+    // Get extended PATH to ensure node can be found
     let extended_path = get_extended_path();
-    debug!("[Shell] 扩展 PATH: {}", extended_path);
+    debug!("[Shell] Extended PATH: {}", extended_path);
     
     let output = if openclaw_path.ends_with(".cmd") {
-        // Windows: .cmd 文件需要通过 cmd /c 执行
+        // Windows: .cmd files need to be executed via cmd /c
         let mut cmd_args = vec!["/c", &openclaw_path];
         cmd_args.extend(args);
         let mut cmd = Command::new("cmd");
@@ -393,27 +393,27 @@ pub fn run_openclaw(args: &[&str]) -> Result<String, String> {
         Ok(out) => {
             let stdout = String::from_utf8_lossy(&out.stdout).to_string();
             let stderr = String::from_utf8_lossy(&out.stderr).to_string();
-            debug!("[Shell] 命令退出码: {:?}", out.status.code());
+            debug!("[Shell] Command exit code: {:?}", out.status.code());
             if out.status.success() {
-                debug!("[Shell] 命令执行成功, stdout 长度: {}", stdout.len());
+                debug!("[Shell] Command executed successfully, stdout length: {}", stdout.len());
                 Ok(stdout)
             } else {
-                debug!("[Shell] 命令执行失败, stderr: {}", stderr);
+                debug!("[Shell] Command execution failed, stderr: {}", stderr);
                 Err(format!("{}\n{}", stdout, stderr).trim().to_string())
             }
         }
         Err(e) => {
-            warn!("[Shell] 执行 openclaw 失败: {}", e);
-            Err(format!("执行 openclaw 失败: {}", e))
+            warn!("[Shell] Failed to execute openclaw: {}", e);
+            Err(format!("Failed to execute openclaw: {}", e))
         }
     }
 }
 
-/// 默认的 Gateway Token
+/// Default Gateway Token
 pub const DEFAULT_GATEWAY_TOKEN: &str = "openclaw-manager-local-token";
 
-/// 从 ~/.openclaw/env 文件读取所有环境变量
-/// 与 shell 脚本 `source ~/.openclaw/env` 行为一致
+/// Read all environment variables from ~/.openclaw/env file
+/// Consistent with shell script `source ~/.openclaw/env` behavior
 fn load_openclaw_env_vars() -> HashMap<String, String> {
     let mut env_vars = HashMap::new();
     let env_path = platform::get_env_file_path();
@@ -421,15 +421,15 @@ fn load_openclaw_env_vars() -> HashMap<String, String> {
     if let Ok(content) = file::read_file(&env_path) {
         for line in content.lines() {
             let line = line.trim();
-            // 跳过注释和空行
+            // Skip comments and empty lines
             if line.is_empty() || line.starts_with('#') {
                 continue;
             }
-            // 解析 export KEY=VALUE 或 KEY=VALUE 格式
+            // Parse export KEY=VALUE or KEY=VALUE format
             let line = line.strip_prefix("export ").unwrap_or(line);
             if let Some((key, value)) = line.split_once('=') {
                 let key = key.trim();
-                // 去除值周围的引号
+                // Remove quotes around the value
                 let value = value.trim()
                     .trim_matches('"')
                     .trim_matches('\'');
@@ -441,82 +441,82 @@ fn load_openclaw_env_vars() -> HashMap<String, String> {
     env_vars
 }
 
-/// 后台启动 openclaw gateway
-/// 与 shell 脚本行为一致：先加载 env 文件，再启动 gateway
+/// Start openclaw gateway in background
+/// Consistent with shell script behavior: load env file first, then start gateway
 pub fn spawn_openclaw_gateway() -> io::Result<()> {
-    info!("[Shell] 后台启动 openclaw gateway...");
+    info!("[Shell] Starting openclaw gateway in background...");
     
     let openclaw_path = get_openclaw_path().ok_or_else(|| {
-        warn!("[Shell] 找不到 openclaw 命令");
+        warn!("[Shell] Cannot find openclaw command");
         io::Error::new(
             io::ErrorKind::NotFound,
-            "找不到 openclaw 命令，请确保已通过 npm install -g openclaw 安装"
+            "Cannot find openclaw command, please ensure it is installed via npm install -g openclaw"
         )
     })?;
+
+    info!("[Shell] openclaw path: {}", openclaw_path);
     
-    info!("[Shell] openclaw 路径: {}", openclaw_path);
-    
-    // 加载用户的 env 文件环境变量（与 shell 脚本 source ~/.openclaw/env 一致）
-    info!("[Shell] 加载用户环境变量...");
+    // Load user's env file environment variables (consistent with shell script source ~/.openclaw/env)
+    info!("[Shell] Loading user environment variables...");
     let user_env_vars = load_openclaw_env_vars();
-    info!("[Shell] 已加载 {} 个环境变量", user_env_vars.len());
+    info!("[Shell] Loaded {} environment variables", user_env_vars.len());
     for key in user_env_vars.keys() {
-        debug!("[Shell] - 环境变量: {}", key);
+        debug!("[Shell] - Environment variable: {}", key);
     }
     
-    // 获取扩展的 PATH，确保能找到 node
+    // Get extended PATH to ensure node can be found
     let extended_path = get_extended_path();
-    info!("[Shell] 扩展 PATH: {}", extended_path);
+    info!("[Shell] Extended PATH: {}", extended_path);
     
-    // Windows 上 .cmd 文件需要通过 cmd /c 来执行
-    // 设置环境变量 OPENCLAW_GATEWAY_TOKEN，这样所有子命令都能自动使用
+    // On Windows, .cmd files need to be executed via cmd /c
+    // Set environment variable OPENCLAW_GATEWAY_TOKEN so all subcommands can use it automatically
     let mut cmd = if openclaw_path.ends_with(".cmd") {
-        info!("[Shell] Windows 模式: 使用 cmd /c 执行");
+        info!("[Shell] Windows mode: executing via cmd /c");
         let mut c = Command::new("cmd");
         c.args(["/c", &openclaw_path, "gateway", "--port", "18789"]);
         c
     } else {
-        info!("[Shell] Unix 模式: 直接执行");
+        info!("[Shell] Unix mode: executing directly");
         let mut c = Command::new(&openclaw_path);
         c.args(["gateway", "--port", "18789"]);
         c
     };
     
-    // 注入用户的环境变量（如 ANTHROPIC_API_KEY, OPENAI_API_KEY 等）
+    // Inject user's environment variables (such as ANTHROPIC_API_KEY, OPENAI_API_KEY, etc.)
     for (key, value) in &user_env_vars {
         cmd.env(key, value);
     }
     
-    // 设置 PATH 和 gateway token
+    // Set PATH and gateway token
     cmd.env("PATH", &extended_path);
     cmd.env("OPENCLAW_GATEWAY_TOKEN", DEFAULT_GATEWAY_TOKEN);
     
-    // Windows: 隐藏控制台窗口
+    // Windows: hide console window
     #[cfg(windows)]
     cmd.creation_flags(CREATE_NO_WINDOW);
     
-    info!("[Shell] 启动 gateway 进程...");
+    info!("[Shell] Starting gateway process...");
     let child = cmd.spawn();
     
     match child {
         Ok(c) => {
-            info!("[Shell] ✓ Gateway 进程已启动, PID: {}", c.id());
+            info!("[Shell] ✓ Gateway process started, PID: {}", c.id());
             Ok(())
         }
         Err(e) => {
-            warn!("[Shell] ✗ Gateway 启动失败: {}", e);
+            warn!("[Shell] ✗ Gateway startup failed: {}", e);
             Err(io::Error::new(
                 e.kind(),
-                format!("启动失败 (路径: {}): {}", openclaw_path, e)
+                format!("Startup failed (path: {}): {}", openclaw_path, e)
             ))
         }
     }
 }
 
-/// 检查命令是否存在
+/// Check if command exists
 pub fn command_exists(cmd: &str) -> bool {
     if platform::is_windows() {
-        // Windows: 使用 where 命令
+        // Windows: use where command
         let mut command = Command::new("where");
         command.arg(cmd);
         
@@ -527,7 +527,7 @@ pub fn command_exists(cmd: &str) -> bool {
             .map(|o| o.status.success())
             .unwrap_or(false)
     } else {
-        // Unix: 使用 which 命令
+        // Unix: use which command
         Command::new("which")
             .arg(cmd)
             .output()
