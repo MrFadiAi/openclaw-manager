@@ -1581,6 +1581,247 @@ pub async fn clear_channel_config(channel_id: String) -> Result<String, String> 
     }
 }
 
+// ============ Telegram Multi-Account Management ============
+
+/// Telegram account info for frontend
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TelegramAccount {
+    pub id: String,
+    #[serde(alias = "botToken", alias = "bot_token")]
+    pub bot_token: String,
+    #[serde(alias = "groupPolicy", alias = "group_policy")]
+    pub group_policy: Option<String>,
+    #[serde(alias = "dmPolicy", alias = "dm_policy")]
+    pub dm_policy: Option<String>,
+    #[serde(alias = "streamMode", alias = "stream_mode")]
+    pub stream_mode: Option<String>,
+    #[serde(alias = "exclusiveTopics", alias = "exclusive_topics")]
+    pub exclusive_topics: Option<Vec<String>>,
+    pub groups: Option<serde_json::Value>,
+}
+
+/// Get all Telegram bot accounts
+#[command]
+pub async fn get_telegram_accounts() -> Result<Vec<TelegramAccount>, String> {
+    info!("[Telegram Accounts] Getting accounts...");
+    let config = load_openclaw_config()?;
+
+    let mut accounts = Vec::new();
+
+    // Check for multi-account structure: channels.telegram.accounts
+    if let Some(accts) = config.pointer("/channels/telegram/accounts").and_then(|v| v.as_object()) {
+        for (id, acct_val) in accts {
+            accounts.push(TelegramAccount {
+                id: id.clone(),
+                bot_token: acct_val.get("botToken").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                group_policy: acct_val.get("groupPolicy").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                dm_policy: acct_val.get("dmPolicy").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                stream_mode: acct_val.get("streamMode").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                exclusive_topics: {
+                    // Re-infer exclusive topics from group config
+                    // Logic: If a group has requireMention=true and specific topics have requireMention=false, those are exclusive topics.
+                    let mut inferred_topics = Vec::new();
+                    if let Some(groups_map) = acct_val.get("groups").and_then(|g| g.as_object()) {
+                        for (_, group_val) in groups_map {
+                             // Check if group is muted (requireMention=true)
+                             if group_val.get("requireMention").and_then(|v| v.as_bool()).unwrap_or(false) {
+                                 if let Some(topics_map) = group_val.get("topics").and_then(|t| t.as_object()) {
+                                     for (tid, tval) in topics_map {
+                                         // Check if topic is unmuted (requireMention=false)
+                                         if !tval.get("requireMention").and_then(|v| v.as_bool()).unwrap_or(true) {
+                                             inferred_topics.push(tid.clone());
+                                         }
+                                     }
+                                 }
+                             }
+                        }
+                    }
+                    if inferred_topics.is_empty() { None } else { Some(inferred_topics) }
+                },
+                groups: acct_val.get("groups").cloned(),
+            });
+        }
+    }
+
+    // Fallback: single-bot config (botToken at top level)
+    if accounts.is_empty() {
+        if let Some(token) = config.pointer("/channels/telegram/botToken").and_then(|v| v.as_str()) {
+            if !token.is_empty() {
+                accounts.push(TelegramAccount {
+                    id: "default".to_string(),
+                    bot_token: token.to_string(),
+                    group_policy: config.pointer("/channels/telegram/groupPolicy").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                    dm_policy: config.pointer("/channels/telegram/dmPolicy").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                    stream_mode: config.pointer("/channels/telegram/streamMode").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                    exclusive_topics: None,
+                    groups: config.pointer("/channels/telegram/groups").cloned(),
+                });
+            }
+        }
+    }
+
+    info!("[Telegram Accounts] Found {} accounts", accounts.len());
+    Ok(accounts)
+}
+
+/// Save a Telegram bot account
+#[command]
+pub async fn save_telegram_account(account: TelegramAccount) -> Result<String, String> {
+    info!("[Telegram Accounts] Saving account: {}", account.id);
+    let mut config = load_openclaw_config()?;
+
+    // Ensure channels.telegram exists
+    if config.get("channels").is_none() {
+        config["channels"] = json!({});
+    }
+    if config["channels"].get("telegram").is_none() {
+        config["channels"]["telegram"] = json!({ "enabled": true });
+    }
+
+    // Ensure accounts object exists
+    if config["channels"]["telegram"].get("accounts").is_none() {
+        config["channels"]["telegram"]["accounts"] = json!({});
+    }
+
+    // Migrate single-bot to accounts if this is the first additional account
+    if let Some(top_token) = config["channels"]["telegram"].get("botToken").and_then(|v| v.as_str()).map(|s| s.to_string()) {
+        if !top_token.is_empty() {
+            // Move existing single-bot config to accounts["default"]
+            let existing = json!({
+                "botToken": top_token,
+                "groupPolicy": config["channels"]["telegram"].get("groupPolicy").cloned().unwrap_or(json!(null)),
+                "dmPolicy": config["channels"]["telegram"].get("dmPolicy").cloned().unwrap_or(json!(null)),
+                "streamMode": config["channels"]["telegram"].get("streamMode").cloned().unwrap_or(json!(null)),
+                "groups": config["channels"]["telegram"].get("groups").cloned().unwrap_or(json!(null)),
+            });
+            config["channels"]["telegram"]["accounts"]["default"] = existing;
+            // Remove top-level single-bot fields
+            if let Some(tg) = config["channels"]["telegram"].as_object_mut() {
+                tg.remove("botToken");
+                tg.remove("groupPolicy");
+                tg.remove("dmPolicy");
+                tg.remove("streamMode");
+                tg.remove("groups");
+                tg.remove("allowFrom");
+                tg.remove("groupAllowFrom");
+            }
+        }
+    }
+
+    // Build account object
+    let mut acct_obj = json!({
+        "botToken": account.bot_token,
+    });
+    if let Some(gp) = &account.group_policy {
+        acct_obj["groupPolicy"] = json!(gp);
+    }
+    if let Some(dp) = &account.dm_policy {
+        acct_obj["dmPolicy"] = json!(dp);
+    }
+    if let Some(sm) = &account.stream_mode {
+        acct_obj["streamMode"] = json!(sm);
+    }
+
+    // Handle groups configuration
+    // If exclusive_topics is set, we need to modify the group config to enforce it
+    // 1. Set group-level requireMention = true (default behavior: ignore everything)
+    // 2. Set topic-level requireMention = false for whitelisted topics (exception: auto-reply)
+    let mut groups_json = account.groups.clone();
+    
+    if let Some(exclusive_topics) = &account.exclusive_topics {
+        if !exclusive_topics.is_empty() {
+             // We also save the raw list so the UI can reload it (using a hidden field or relying on inference)
+             // However, OpenClaw core rejects unknown fields. So we must ONLY output valid config.
+             // Strategy: The UI will need to infer exclusive topics from the config structure if we can't save the field.
+             // OR: We save it as a comment? No, JSON doesn't support comments.
+             // COMPROMISE: We will NOT save "exclusiveTopics" to the file to avoid validation errors.
+             // The UI will have to populate the field by checking if a group has topics configured.
+             // For now, let's just apply the logic to the groups logic.
+
+            if let Some(groups_map) = groups_json.as_mut().and_then(|g| g.as_object_mut()) {
+                for (_, group_val) in groups_map.iter_mut() {
+                    if let Some(group_obj) = group_val.as_object_mut() {
+                        // Enforce whitelist logic:
+                        // 1. Group requires mention (mute general)
+                        group_obj.insert("requireMention".to_string(), json!(true));
+                        group_obj.insert("enabled".to_string(), json!(true));
+
+                        // 2. Allow specific topics
+                        let mut topics_map = serde_json::Map::new();
+                        for topic_id in exclusive_topics {
+                            let mut topic_config = serde_json::Map::new();
+                            topic_config.insert("requireMention".to_string(), json!(false));
+                            topics_map.insert(topic_id.clone(), json!(topic_config));
+                        }
+
+                        // 3. Explicitly block topics owned by OTHER bot accounts
+                        //    This prevents cross-talk when OpenClaw core doesn't
+                        //    fall back to group-level requireMention for unlisted topics.
+                        if let Some(all_accts) = config.pointer("/channels/telegram/accounts").and_then(|v| v.as_object()) {
+                            for (other_id, other_val) in all_accts {
+                                if other_id == &account.id { continue; }
+                                if let Some(other_groups) = other_val.get("groups").and_then(|g| g.as_object()) {
+                                    for (_, other_group) in other_groups {
+                                        if let Some(other_topics) = other_group.get("topics").and_then(|t| t.as_object()) {
+                                            for (other_tid, _) in other_topics {
+                                                if !exclusive_topics.contains(other_tid) && !topics_map.contains_key(other_tid) {
+                                                    let mut block_config = serde_json::Map::new();
+                                                    block_config.insert("requireMention".to_string(), json!(true));
+                                                    topics_map.insert(other_tid.clone(), json!(block_config));
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        group_obj.insert("topics".to_string(), json!(topics_map));
+                    }
+                }
+            }
+        }
+    }
+
+    if let Some(g) = groups_json {
+        acct_obj["groups"] = g;
+    }
+
+    // NOTE: We do NOT save "exclusiveTopics" field to avoid schema validation errors in OpenClaw core.
+    // The UI state for this field might be lost on restart unless we infer it back from the topics structure,
+    // but the *behavior* will be correct.
+
+    config["channels"]["telegram"]["accounts"][&account.id] = acct_obj;
+
+    // Ensure telegram is enabled and in plugins
+    config["channels"]["telegram"]["enabled"] = json!(true);
+    if config.get("plugins").is_none() {
+        config["plugins"] = json!({ "allow": ["telegram"], "entries": { "telegram": { "enabled": true } } });
+    }
+
+    save_openclaw_config(&config)?;
+    Ok(format!("Account '{}' saved", account.id))
+}
+
+/// Delete a Telegram bot account
+#[command]
+pub async fn delete_telegram_account(account_id: String) -> Result<String, String> {
+    info!("[Telegram Accounts] Deleting account: {}", account_id);
+    let mut config = load_openclaw_config()?;
+
+    if let Some(accts) = config.pointer_mut("/channels/telegram/accounts").and_then(|v| v.as_object_mut()) {
+        accts.remove(&account_id);
+    }
+
+    // Also clean up any bindings referencing this account
+    if let Some(bindings) = config.get_mut("bindings").and_then(|v| v.as_array_mut()) {
+        bindings.retain(|b| b.pointer("/match/accountId").and_then(|v| v.as_str()) != Some(&account_id));
+    }
+
+    save_openclaw_config(&config)?;
+    Ok(format!("Account '{}' deleted", account_id))
+}
+
 // ============ Feishu Plugin Management ============
 
 /// Feishu plugin status
@@ -1683,6 +1924,14 @@ pub async fn install_feishu_plugin() -> Result<String, String> {
     }
 }
 
+// ============ OpenClaw Home Directory ============
+
+/// Get the OpenClaw home directory path (~/.openclaw)
+#[command]
+pub async fn get_openclaw_home_dir() -> Result<String, String> {
+    Ok(platform::get_config_dir())
+}
+
 // ============ Multi-Agent Routing ============
 
 /// Agent configuration for the frontend
@@ -1690,24 +1939,26 @@ pub async fn install_feishu_plugin() -> Result<String, String> {
 pub struct AgentInfo {
     pub id: String,
     pub workspace: Option<String>,
-    #[serde(rename = "agentDir")]
+    #[serde(alias = "agentDir", alias = "agent_dir")]
     pub agent_dir: Option<String>,
     pub model: Option<String>,
     pub sandbox: Option<bool>,
+    pub heartbeat: Option<String>,
 }
 
 /// Agent binding rule
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentBinding {
-    #[serde(rename = "agentId")]
+    #[serde(alias = "agentId", alias = "agent_id")]
     pub agent_id: String,
+    #[serde(alias = "matchRule", alias = "match_rule")]
     pub match_rule: MatchRule,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MatchRule {
     pub channel: Option<String>,
-    #[serde(rename = "accountId")]
+    #[serde(alias = "accountId", alias = "account_id")]
     pub account_id: Option<String>,
     pub peer: Option<serde_json::Value>,
 }
@@ -1728,21 +1979,38 @@ pub async fn get_agents_config() -> Result<AgentsConfigResponse, String> {
     let mut agents = Vec::new();
     let mut bindings = Vec::new();
 
-    // Read agents.list
-    if let Some(list) = config.pointer("/agents/list").and_then(|v| v.as_object()) {
-        for (id, agent_val) in list {
+    // Read agents.list — supports both array format (correct) and object format (legacy)
+    if let Some(list_arr) = config.pointer("/agents/list").and_then(|v| v.as_array()) {
+        // Correct format: array of { id, workspace, agentDir, model, ... }
+        for agent_val in list_arr {
+            agents.push(AgentInfo {
+                id: agent_val.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                workspace: agent_val.get("workspace").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                agent_dir: agent_val.get("agentDir").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                model: agent_val.pointer("/model/primary").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                sandbox: agent_val.get("sandbox").and_then(|v| v.as_bool()),
+                heartbeat: agent_val.pointer("/heartbeat/every").and_then(|v| v.as_str()).map(|s| s.to_string()),
+            });
+        }
+    } else if let Some(list_obj) = config.pointer("/agents/list").and_then(|v| v.as_object()) {
+        // Legacy format: object with id as keys
+        for (id, agent_val) in list_obj {
             agents.push(AgentInfo {
                 id: id.clone(),
                 workspace: agent_val.get("workspace").and_then(|v| v.as_str()).map(|s| s.to_string()),
                 agent_dir: agent_val.get("agentDir").and_then(|v| v.as_str()).map(|s| s.to_string()),
                 model: agent_val.pointer("/model/primary").and_then(|v| v.as_str()).map(|s| s.to_string()),
                 sandbox: agent_val.get("sandbox").and_then(|v| v.as_bool()),
+                heartbeat: agent_val.pointer("/heartbeat/every").and_then(|v| v.as_str()).map(|s| s.to_string()),
             });
         }
     }
 
-    // Read bindings
-    if let Some(bindings_arr) = config.pointer("/agents/bindings").and_then(|v| v.as_array()) {
+    // Read bindings — check top-level first (correct), then agents.bindings (legacy)
+    let bindings_arr = config.get("bindings").and_then(|v| v.as_array())
+        .or_else(|| config.pointer("/agents/bindings").and_then(|v| v.as_array()));
+    
+    if let Some(bindings_arr) = bindings_arr {
         for binding_val in bindings_arr {
             let empty_match = json!({});
             let match_obj = binding_val.get("match").unwrap_or(&empty_match);
@@ -1768,15 +2036,13 @@ pub async fn save_agent(agent: AgentInfo) -> Result<String, String> {
     info!("[Agents] Saving agent: {}", agent.id);
     let mut config = load_openclaw_config()?;
 
-    // Ensure agents.list exists
-    if config.pointer("/agents/list").is_none() {
-        if config.get("agents").is_none() {
-            config["agents"] = json!({});
-        }
-        config["agents"]["list"] = json!({});
+    // Ensure agents object exists
+    if config.get("agents").is_none() {
+        config["agents"] = json!({});
     }
 
-    let mut agent_obj = json!({});
+    // Build agent object (array element format with "id" field)
+    let mut agent_obj = json!({ "id": agent.id });
     if let Some(workspace) = &agent.workspace {
         if !workspace.is_empty() {
             agent_obj["workspace"] = json!(workspace);
@@ -1795,8 +2061,83 @@ pub async fn save_agent(agent: AgentInfo) -> Result<String, String> {
     if let Some(sandbox) = agent.sandbox {
         agent_obj["sandbox"] = json!(sandbox);
     }
+    if let Some(heartbeat) = &agent.heartbeat {
+        if !heartbeat.is_empty() {
+            agent_obj["heartbeat"] = json!({ "every": heartbeat });
+        }
+    }
 
-    config["agents"]["list"][&agent.id] = agent_obj;
+    // Migrate legacy object format to array if needed
+    let mut list = if let Some(arr) = config["agents"].get("list").and_then(|v| v.as_array()) {
+        arr.clone()
+    } else if let Some(obj) = config["agents"].get("list").and_then(|v| v.as_object()) {
+        // Convert legacy object to array
+        obj.iter().map(|(id, val)| {
+            let mut entry = val.clone();
+            entry["id"] = json!(id);
+            entry
+        }).collect()
+    } else {
+        Vec::new()
+    };
+
+    // Update or add the agent
+    if let Some(existing) = list.iter_mut().find(|a| a.get("id").and_then(|v| v.as_str()) == Some(&agent.id)) {
+        *existing = agent_obj;
+    } else {
+        list.push(agent_obj);
+    }
+
+    config["agents"]["list"] = json!(list);
+
+    // Auto-create binding if a Telegram bot account is available and this agent has no binding yet
+    let agent_id = agent.id.clone();
+    let available_accounts: Vec<String> = config.pointer("/channels/telegram/accounts")
+        .and_then(|v| v.as_object())
+        .map(|accts| accts.keys().cloned().collect())
+        .unwrap_or_default();
+
+    if !available_accounts.is_empty() {
+        // Check if this agent already has ANY binding
+        let has_existing_binding = config.get("bindings")
+            .and_then(|v| v.as_array())
+            .map(|bindings| bindings.iter().any(|b| {
+                b.get("agentId").and_then(|v| v.as_str()) == Some(&agent_id)
+            }))
+            .unwrap_or(false);
+
+        if !has_existing_binding {
+            // Find accounts already bound to other agents
+            let bound_accounts: Vec<String> = config.get("bindings")
+                .and_then(|v| v.as_array())
+                .map(|bindings| bindings.iter().filter_map(|b| {
+                    b.get("match").and_then(|m| m.get("accountId")).and_then(|v| v.as_str()).map(|s| s.to_string())
+                }).collect())
+                .unwrap_or_default();
+
+            // Prefer: exact match > substring match > first unbound account > first account
+            let best_account = available_accounts.iter()
+                .find(|a| **a == agent_id) // exact match
+                .or_else(|| available_accounts.iter().find(|a| a.contains(&agent_id) || agent_id.contains(a.as_str()))) // substring
+                .or_else(|| available_accounts.iter().find(|a| !bound_accounts.contains(a))) // unbound
+                .or_else(|| available_accounts.first()) // fallback
+                .cloned();
+
+            if let Some(account_id) = best_account {
+                info!("[Agents] Auto-creating binding for agent '{}' → account '{}'", agent_id, account_id);
+                if config.get("bindings").is_none() {
+                    config["bindings"] = json!([]);
+                }
+                if let Some(bindings) = config.get_mut("bindings").and_then(|v| v.as_array_mut()) {
+                    bindings.push(json!({
+                        "agentId": agent_id,
+                        "match": { "channel": "telegram", "accountId": account_id }
+                    }));
+                }
+            }
+        }
+    }
+
     save_openclaw_config(&config)?;
     Ok(format!("Agent '{}' saved", agent.id))
 }
@@ -1807,12 +2148,16 @@ pub async fn delete_agent(agent_id: String) -> Result<String, String> {
     info!("[Agents] Deleting agent: {}", agent_id);
     let mut config = load_openclaw_config()?;
 
-    // Remove from agents.list
-    if let Some(list) = config.pointer_mut("/agents/list").and_then(|v| v.as_object_mut()) {
-        list.remove(&agent_id);
+    // Remove from agents.list (array format)
+    if let Some(list) = config.pointer_mut("/agents/list").and_then(|v| v.as_array_mut()) {
+        list.retain(|a| a.get("id").and_then(|v| v.as_str()) != Some(&agent_id));
     }
 
-    // Remove related bindings
+    // Remove related bindings (top-level)
+    if let Some(bindings) = config.get_mut("bindings").and_then(|v| v.as_array_mut()) {
+        bindings.retain(|b| b.get("agentId").and_then(|v| v.as_str()) != Some(&agent_id));
+    }
+    // Also clean legacy agents.bindings
     if let Some(bindings) = config.pointer_mut("/agents/bindings").and_then(|v| v.as_array_mut()) {
         bindings.retain(|b| b.get("agentId").and_then(|v| v.as_str()) != Some(&agent_id));
     }
@@ -1828,12 +2173,22 @@ pub async fn save_agent_binding(binding: AgentBinding) -> Result<String, String>
     info!("[Agents] Saving binding for agent: {}", binding.agent_id);
     let mut config = load_openclaw_config()?;
 
-    // Ensure agents.bindings array exists
-    if config.get("agents").is_none() {
-        config["agents"] = json!({});
+    // Ensure top-level bindings array exists
+    if config.get("bindings").is_none() {
+        config["bindings"] = json!([]);
     }
-    if config["agents"].get("bindings").is_none() {
-        config["agents"]["bindings"] = json!([]);
+
+    // Migrate legacy agents.bindings to top-level if present
+    if let Some(legacy) = config.pointer("/agents/bindings").and_then(|v| v.as_array()).map(|a| a.clone()) {
+        if let Some(top) = config.get_mut("bindings").and_then(|v| v.as_array_mut()) {
+            for b in legacy {
+                top.push(b);
+            }
+        }
+        // Remove legacy location
+        if let Some(agents) = config.get_mut("agents").and_then(|v| v.as_object_mut()) {
+            agents.remove("bindings");
+        }
     }
 
     let mut match_obj = json!({});
@@ -1852,7 +2207,7 @@ pub async fn save_agent_binding(binding: AgentBinding) -> Result<String, String>
         "match": match_obj
     });
 
-    if let Some(bindings) = config.pointer_mut("/agents/bindings").and_then(|v| v.as_array_mut()) {
+    if let Some(bindings) = config.get_mut("bindings").and_then(|v| v.as_array_mut()) {
         bindings.push(binding_obj);
     }
 
@@ -1866,18 +2221,124 @@ pub async fn delete_agent_binding(index: usize) -> Result<String, String> {
     info!("[Agents] Deleting binding at index: {}", index);
     let mut config = load_openclaw_config()?;
 
-    if let Some(bindings) = config.pointer_mut("/agents/bindings").and_then(|v| v.as_array_mut()) {
+    // Try top-level bindings first (correct location)
+    if let Some(bindings) = config.get_mut("bindings").and_then(|v| v.as_array_mut()) {
         if index < bindings.len() {
             bindings.remove(index);
+            save_openclaw_config(&config)?;
+            return Ok(format!("Binding at index {} deleted", index));
         } else {
             return Err(format!("Binding index {} out of range", index));
         }
-    } else {
-        return Err("No bindings found".to_string());
     }
 
-    save_openclaw_config(&config)?;
-    Ok(format!("Binding at index {} deleted", index))
+    // Fallback to legacy agents.bindings
+    if let Some(bindings) = config.pointer_mut("/agents/bindings").and_then(|v| v.as_array_mut()) {
+        if index < bindings.len() {
+            bindings.remove(index);
+            save_openclaw_config(&config)?;
+            return Ok(format!("Binding at index {} deleted", index));
+        } else {
+            return Err(format!("Binding index {} out of range", index));
+        }
+    }
+
+    Err("No bindings found".to_string())
+}
+
+// ============ Agent System Prompt ============
+
+/// Read the system prompt (SYSTEM.md) for an agent
+#[command]
+pub async fn get_agent_system_prompt(agent_id: String, workspace: Option<String>) -> Result<String, String> {
+    let base = workspace.unwrap_or_else(|| platform::get_config_dir());
+    let sep = if cfg!(windows) { "\\" } else { "/" };
+    let path = format!("{}{}agents{}{}{}SYSTEM.md", base, sep, sep, agent_id, sep);
+    info!("[Agents] Reading system prompt from: {}", path);
+
+    if std::path::Path::new(&path).exists() {
+        std::fs::read_to_string(&path)
+            .map_err(|e| format!("Failed to read system prompt: {}", e))
+    } else {
+        Ok(String::new())
+    }
+}
+
+/// Save the system prompt (SYSTEM.md) for an agent
+#[command]
+pub async fn save_agent_system_prompt(agent_id: String, workspace: Option<String>, content: String) -> Result<String, String> {
+    let base = workspace.unwrap_or_else(|| platform::get_config_dir());
+    let sep = if cfg!(windows) { "\\" } else { "/" };
+    let dir = format!("{}{}agents{}{}", base, sep, sep, agent_id);
+    let path = format!("{}{}SYSTEM.md", dir, sep);
+    info!("[Agents] Writing system prompt to: {}", path);
+
+    // Create directory if it doesn't exist
+    std::fs::create_dir_all(&dir)
+        .map_err(|e| format!("Failed to create agent directory: {}", e))?;
+
+    std::fs::write(&path, &content)
+        .map_err(|e| format!("Failed to write system prompt: {}", e))?;
+
+    Ok(format!("System prompt saved for agent '{}'", agent_id))
+}
+
+/// Test agent routing: given an account ID, find which agent handles it
+#[command]
+pub async fn test_agent_routing(account_id: String) -> Result<serde_json::Value, String> {
+    let config = load_openclaw_config()?;
+
+    // Walk through bindings to find a match
+    let bindings = config.get("bindings").and_then(|v| v.as_array());
+
+    if let Some(bindings) = bindings {
+        let empty_match = json!({});
+        for binding in bindings {
+            let match_obj = binding.get("match").unwrap_or(&empty_match);
+            let binding_account = match_obj.get("accountId").and_then(|v| v.as_str());
+            let binding_channel = match_obj.get("channel").and_then(|v| v.as_str());
+
+            // Check if this binding matches
+            let account_matches = binding_account.map(|a| a == account_id).unwrap_or(true); // None = catch-all
+            let channel_matches = binding_channel.map(|c| c == "telegram").unwrap_or(true);
+
+            if account_matches && channel_matches {
+                let agent_id = binding.get("agentId").and_then(|v| v.as_str()).unwrap_or("unknown");
+
+                // Find agent details
+                let agent_info = config.pointer("/agents/list")
+                    .and_then(|v| v.as_array())
+                    .and_then(|list| list.iter().find(|a| a.get("id").and_then(|v| v.as_str()) == Some(agent_id)));
+
+                // Read system prompt preview
+                let base = platform::get_config_dir();
+                let sep = if cfg!(windows) { "\\" } else { "/" };
+                let prompt_path = format!("{}{}agents{}{}{}SYSTEM.md", base, sep, sep, agent_id, sep);
+                let prompt_preview = std::fs::read_to_string(&prompt_path)
+                    .unwrap_or_default();
+                let prompt_preview = if prompt_preview.len() > 200 {
+                    format!("{}...", &prompt_preview[..200])
+                } else {
+                    prompt_preview
+                };
+
+                return Ok(json!({
+                    "matched": true,
+                    "agent_id": agent_id,
+                    "agent_dir": agent_info.and_then(|a| a.get("agentDir").and_then(|v| v.as_str())),
+                    "model": agent_info.and_then(|a| a.pointer("/model/primary").and_then(|v| v.as_str())),
+                    "system_prompt_preview": prompt_preview,
+                    "binding": binding
+                }));
+            }
+        }
+    }
+
+    Ok(json!({
+        "matched": false,
+        "agent_id": "default",
+        "message": "No specific binding found. Messages will be handled by the default agent."
+    }))
 }
 
 // ============ Heartbeat & Compaction ============

@@ -94,11 +94,19 @@ fn main() {
             skills::uninstall_skill,
             skills::uninstall_clawhub,
             // Multi-Agent Routing
+            config::get_openclaw_home_dir,
             config::get_agents_config,
             config::save_agent,
             config::delete_agent,
             config::save_agent_binding,
             config::delete_agent_binding,
+            config::get_agent_system_prompt,
+            config::save_agent_system_prompt,
+            config::test_agent_routing,
+            // Telegram Multi-Account
+            config::get_telegram_accounts,
+            config::save_telegram_account,
+            config::delete_telegram_account,
             // Heartbeat & Compaction
             config::get_heartbeat_config,
             config::save_heartbeat_config,

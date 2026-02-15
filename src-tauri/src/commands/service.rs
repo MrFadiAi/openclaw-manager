@@ -197,19 +197,59 @@ pub async fn stop_service() -> Result<String, String> {
 pub async fn restart_service() -> Result<String, String> {
     info!("[Service] Restarting service...");
 
-    let _ = shell::run_openclaw(&["gateway", "restart"]);
-    std::thread::sleep(std::time::Duration::from_secs(2));
-
+    // Step 1: Stop the service if it's running
     let status = get_service_status().await?;
     if status.running {
-        info!("[Service] Successfully restarted, PID: {:?}", status.pid);
-        Ok(format!("Service restarted, PID: {:?}", status.pid))
+        info!("[Service] Service is running, stopping first...");
+        let _ = shell::run_openclaw(&["gateway", "stop"]);
+        std::thread::sleep(std::time::Duration::from_millis(500));
+
+        // Check if stopped
+        let status = get_service_status().await?;
+        if status.running {
+            info!("[Service] Service still running, trying force stop...");
+            let _ = shell::run_openclaw(&["gateway", "stop", "--force"]);
+            std::thread::sleep(std::time::Duration::from_millis(500));
+        }
+
+        // Wait for port to be freed (max 5 seconds)
+        for i in 1..=10 {
+            if check_port_listening(SERVICE_PORT).is_none() {
+                info!("[Service] Port {} freed after {}ms", SERVICE_PORT, i * 500);
+                break;
+            }
+            if i == 10 {
+                return Err(format!(
+                    "Failed to stop service: port {} still in use after 5s",
+                    SERVICE_PORT
+                ));
+            }
+            std::thread::sleep(std::time::Duration::from_millis(500));
+        }
     } else {
-        // Manually stop then start
-        let _ = stop_service().await;
-        std::thread::sleep(std::time::Duration::from_secs(1));
-        start_service().await
+        info!("[Service] Service was not running");
     }
+
+    // Step 2: Start the service
+    info!("[Service] Starting gateway in background...");
+    shell::spawn_openclaw_gateway()
+        .map_err(|e| format!("Failed to start service: {}", e))?;
+
+    // Step 3: Poll and wait for port to start listening (max 15 seconds)
+    info!("[Service] Waiting for port {} to start listening...", SERVICE_PORT);
+    for i in 1..=15 {
+        std::thread::sleep(std::time::Duration::from_secs(1));
+        if let Some(pid) = check_port_listening(SERVICE_PORT) {
+            info!("[Service] Successfully restarted ({}s), PID: {}", i, pid);
+            return Ok(format!("Service restarted, PID: {}", pid));
+        }
+        if i % 3 == 0 {
+            debug!("[Service] Waiting... ({}s)", i);
+        }
+    }
+
+    info!("[Service] Restart timeout, port still not listening");
+    Err("Service restart timeout (15s), please check openclaw logs".to_string())
 }
 
 /// Get logs

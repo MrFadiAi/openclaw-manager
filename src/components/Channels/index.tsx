@@ -24,6 +24,8 @@ import {
   AlertTriangle,
   Trash2,
   Plus,
+  Bot,
+  Settings,
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -232,8 +234,33 @@ export function Channels() {
   const [clearing, setClearing] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
 
+  // Per-group settings type
+  interface GroupSettings {
+    requireMention: boolean;
+    enabled: boolean;
+    groupPolicy: string;
+    systemPrompt: string;
+  }
+
+  // Telegram multi-account state
+  interface TelegramAccountInfo {
+    id: string;
+    bot_token: string;
+    group_policy?: string;
+    dm_policy?: string;
+    stream_mode?: string;
+    exclusive_topics?: string[];
+    groups?: Record<string, unknown>;
+  }
+  const [telegramAccounts, setTelegramAccounts] = useState<TelegramAccountInfo[]>([]);
+  const [showAddAccountDialog, setShowAddAccountDialog] = useState(false);
+  const [newAccountId, setNewAccountId] = useState('');
+  const [newAccountToken, setNewAccountToken] = useState('');
+  const [expandedAccount, setExpandedAccount] = useState<string | null>(null);
+  const [savingAccount, setSavingAccount] = useState(false);
+
   // OpenClaw channel access control state
-  const [allowedGroups, setAllowedGroups] = useState<Record<string, boolean>>({}); // { groupId: requireMention }
+  const [allowedGroups, setAllowedGroups] = useState<Record<string, GroupSettings>>({});
   const [allowFromUsers, setAllowFromUsers] = useState<string[]>([]);     // allowFrom (DM user IDs)
   const [groupAllowFromUsers, setGroupAllowFromUsers] = useState<string[]>([]); // groupAllowFrom (group sender IDs)
   const [newGroupInput, setNewGroupInput] = useState('');
@@ -450,11 +477,16 @@ export function Channels() {
       });
       setConfigForm(form);
 
-      // Load groups (object: { groupId: { requireMention: bool } })
-      const groupsObj = (channel.config.groups as Record<string, { requireMention?: boolean }>) || {};
-      const groupMap: Record<string, boolean> = {};
+      // Load groups (object: { groupId: { requireMention, enabled, groupPolicy, systemPrompt } })
+      const groupsObj = (channel.config.groups as Record<string, Record<string, unknown>>) || {};
+      const groupMap: Record<string, GroupSettings> = {};
       for (const [gid, settings] of Object.entries(groupsObj)) {
-        groupMap[gid] = settings?.requireMention !== false; // default true
+        groupMap[gid] = {
+          requireMention: settings?.requireMention !== false,
+          enabled: settings?.enabled !== false,
+          groupPolicy: (settings?.groupPolicy as string) || 'open',
+          systemPrompt: (settings?.systemPrompt as string) || '',
+        };
       }
       setAllowedGroups(groupMap);
 
@@ -470,8 +502,43 @@ export function Channels() {
       if (channel.channel_type === 'feishu') {
         checkFeishuPlugin();
       }
+
+      // If Telegram, fetch accounts
+      if (channel.channel_type === 'telegram') {
+        fetchTelegramAccounts();
+      }
     } else {
       setConfigForm({});
+    }
+  };
+
+  const fetchTelegramAccounts = async () => {
+    try {
+      const accounts: TelegramAccountInfo[] = await invoke('get_telegram_accounts');
+      setTelegramAccounts(accounts);
+    } catch (e) {
+      console.error('Failed to fetch telegram accounts:', e);
+    }
+  };
+
+  const handleSaveAccount = async (account: TelegramAccountInfo) => {
+    setSavingAccount(true);
+    try {
+      await invoke('save_telegram_account', { account });
+      await fetchTelegramAccounts();
+    } catch (e) {
+      console.error('Failed to save telegram account:', e);
+    } finally {
+      setSavingAccount(false);
+    }
+  };
+
+  const handleDeleteAccount = async (accountId: string) => {
+    try {
+      await invoke('delete_telegram_account', { accountId });
+      await fetchTelegramAccounts();
+    } catch (e) {
+      console.error('Failed to delete telegram account:', e);
     }
   };
 
@@ -495,11 +562,21 @@ export function Channels() {
         }
       });
 
-      // Save groups as object: { "groupId": { requireMention: bool } }
+      // Save groups as object with all per-group settings
       if (Object.keys(allowedGroups).length > 0) {
-        const groupsObj: Record<string, { requireMention: boolean }> = {};
-        for (const [gid, reqMention] of Object.entries(allowedGroups)) {
-          groupsObj[gid] = { requireMention: reqMention };
+        const groupsObj: Record<string, Record<string, unknown>> = {};
+        for (const [gid, settings] of Object.entries(allowedGroups)) {
+          const entry: Record<string, unknown> = {
+            requireMention: settings.requireMention,
+            enabled: settings.enabled,
+          };
+          if (settings.groupPolicy && settings.groupPolicy !== 'open') {
+            entry.groupPolicy = settings.groupPolicy;
+          }
+          if (settings.systemPrompt) {
+            entry.systemPrompt = settings.systemPrompt;
+          }
+          groupsObj[gid] = entry;
         }
         config['groups'] = groupsObj;
       }
@@ -712,167 +789,279 @@ export function Channels() {
                   </div>
                 )}
 
-                <div className="space-y-4">
-                  {currentInfo.fields.map((field) => (
-                    <div key={field.key}>
-                      <label className="block text-sm text-gray-400 mb-2">
-                        {field.label}
-                        {field.required && <span className="text-red-400 ml-1">*</span>}
-                        {configForm[field.key] && (
-                          <span className="ml-2 text-green-500 text-xs">✓</span>
-                        )}
-                      </label>
+                {/* Multi-account mode banner */}
+                {currentChannel.channel_type === 'telegram' && telegramAccounts.length > 0 && (
+                  <div className="p-3 bg-blue-500/10 rounded-xl border border-blue-500/30 flex items-start gap-2 mb-4">
+                    <Bot size={16} className="text-blue-400 mt-0.5 shrink-0" />
+                    <p className="text-xs text-gray-300">
+                      <strong className="text-blue-400">Multi-bot mode active.</strong> Bot Token, DM Policy, Group Policy, and Stream Mode are now configured per-account below.
+                    </p>
+                  </div>
+                )}
 
-                      {field.type === 'select' ? (
-                        <select
-                          value={configForm[field.key] || ''}
-                          onChange={(e) =>
-                            setConfigForm({ ...configForm, [field.key]: e.target.value })
-                          }
-                          className="input-base"
-                        >
-                          <option value="">Please select...</option>
-                          {field.options?.map((opt) => (
-                            <option key={opt.value} value={opt.value}>
-                              {opt.label}
-                            </option>
-                          ))}
-                        </select>
-                      ) : field.type === 'password' ? (
-                        <div className="relative">
+                <div className="space-y-4">
+                  {currentInfo.fields
+                    .filter(field => {
+                      // In multi-account mode, hide per-account fields (they're in Bot Accounts section)
+                      if (currentChannel.channel_type === 'telegram' && telegramAccounts.length > 0) {
+                        const accountFields = ['botToken', 'dmPolicy', 'groupPolicy', 'streamMode'];
+                        return !accountFields.includes(field.key);
+                      }
+                      return true;
+                    })
+                    .map((field) => (
+                      <div key={field.key}>
+                        <label className="block text-sm text-gray-400 mb-2">
+                          {field.label}
+                          {field.required && <span className="text-red-400 ml-1">*</span>}
+                          {configForm[field.key] && (
+                            <span className="ml-2 text-green-500 text-xs">✓</span>
+                          )}
+                        </label>
+
+                        {field.type === 'select' ? (
+                          <select
+                            value={configForm[field.key] || ''}
+                            onChange={(e) =>
+                              setConfigForm({ ...configForm, [field.key]: e.target.value })
+                            }
+                            className="input-base"
+                          >
+                            <option value="">Please select...</option>
+                            {field.options?.map((opt) => (
+                              <option key={opt.value} value={opt.value}>
+                                {opt.label}
+                              </option>
+                            ))}
+                          </select>
+                        ) : field.type === 'password' ? (
+                          <div className="relative">
+                            <input
+                              type={visiblePasswords.has(field.key) ? 'text' : 'password'}
+                              value={configForm[field.key] || ''}
+                              onChange={(e) =>
+                                setConfigForm({ ...configForm, [field.key]: e.target.value })
+                              }
+                              placeholder={field.placeholder}
+                              className="input-base pr-10"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => togglePasswordVisibility(field.key)}
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white transition-colors"
+                              title={visiblePasswords.has(field.key) ? 'Hide' : 'Show'}
+                            >
+                              {visiblePasswords.has(field.key) ? (
+                                <EyeOff size={18} />
+                              ) : (
+                                <Eye size={18} />
+                              )}
+                            </button>
+                          </div>
+                        ) : (
                           <input
-                            type={visiblePasswords.has(field.key) ? 'text' : 'password'}
+                            type={field.type}
                             value={configForm[field.key] || ''}
                             onChange={(e) =>
                               setConfigForm({ ...configForm, [field.key]: e.target.value })
                             }
                             placeholder={field.placeholder}
-                            className="input-base pr-10"
+                            className="input-base"
                           />
-                          <button
-                            type="button"
-                            onClick={() => togglePasswordVisibility(field.key)}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white transition-colors"
-                            title={visiblePasswords.has(field.key) ? 'Hide' : 'Show'}
-                          >
-                            {visiblePasswords.has(field.key) ? (
-                              <EyeOff size={18} />
-                            ) : (
-                              <Eye size={18} />
-                            )}
-                          </button>
-                        </div>
-                      ) : (
-                        <input
-                          type={field.type}
-                          value={configForm[field.key] || ''}
-                          onChange={(e) =>
-                            setConfigForm({ ...configForm, [field.key]: e.target.value })
-                          }
-                          placeholder={field.placeholder}
-                          className="input-base"
-                        />
-                      )}
+                        )}
 
-                      {/* Groups UI: shown when groupPolicy is 'allowlist' */}
-                      {field.key === 'groupPolicy' && configForm[field.key] === 'allowlist' && (
-                        <div className="mt-3 space-y-3">
-                          {/* Allowed Groups */}
-                          <div className="p-4 bg-dark-600 rounded-xl border border-dark-500">
-                            <label className="block text-sm text-gray-400 mb-2">Allowed Groups (Chat ID)</label>
-                            <div className="flex gap-2 mb-2">
-                              <input
-                                type="text"
-                                value={newGroupInput}
-                                onChange={(e) => setNewGroupInput(e.target.value)}
-                                placeholder="e.g. -1001234567890"
-                                className="input-base text-sm"
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter') {
-                                    e.preventDefault();
+                        {/* Groups UI: shown when groupPolicy is 'allowlist' */}
+                        {field.key === 'groupPolicy' && configForm[field.key] === 'allowlist' && (
+                          <div className="mt-3 space-y-3">
+                            {/* Allowed Groups */}
+                            <div className="p-4 bg-dark-600 rounded-xl border border-dark-500">
+                              <label className="block text-sm text-gray-400 mb-2">Allowed Groups (Chat ID)</label>
+                              <div className="flex gap-2 mb-2">
+                                <input
+                                  type="text"
+                                  value={newGroupInput}
+                                  onChange={(e) => setNewGroupInput(e.target.value)}
+                                  placeholder="e.g. -1001234567890"
+                                  className="input-base text-sm"
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      e.preventDefault();
+                                      if (newGroupInput && !(newGroupInput in allowedGroups)) {
+                                        setAllowedGroups({ ...allowedGroups, [newGroupInput]: { requireMention: false, enabled: true, groupPolicy: 'open', systemPrompt: '' } });
+                                        setNewGroupInput('');
+                                      }
+                                    }
+                                  }}
+                                />
+                                <button
+                                  onClick={() => {
                                     if (newGroupInput && !(newGroupInput in allowedGroups)) {
-                                      setAllowedGroups({ ...allowedGroups, [newGroupInput]: false });
+                                      setAllowedGroups({ ...allowedGroups, [newGroupInput]: { requireMention: false, enabled: true, groupPolicy: 'open', systemPrompt: '' } });
                                       setNewGroupInput('');
                                     }
-                                  }
-                                }}
-                              />
-                              <button
-                                onClick={() => {
-                                  if (newGroupInput && !(newGroupInput in allowedGroups)) {
-                                    setAllowedGroups({ ...allowedGroups, [newGroupInput]: false });
-                                    setNewGroupInput('');
-                                  }
-                                }}
-                                className="btn-secondary p-2"
-                              >
-                                <Plus size={16} />
-                              </button>
+                                  }}
+                                  className="btn-secondary p-2"
+                                >
+                                  <Plus size={16} />
+                                </button>
+                              </div>
+                              <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                                {Object.entries(allowedGroups).map(([id, settings]) => (
+                                  <div key={id} className="bg-dark-500 rounded-lg border border-dark-400 overflow-hidden">
+                                    <div className="flex items-center justify-between px-3 py-2">
+                                      <span className="font-mono text-sm text-gray-300">{id}</span>
+                                      <div className="flex items-center gap-2">
+                                        <button
+                                          onClick={() => setAllowedGroups({ ...allowedGroups, [id]: { ...settings, enabled: !settings.enabled } })}
+                                          className={`text-xs px-2 py-0.5 rounded-full border transition-colors ${settings.enabled
+                                            ? 'border-green-500/50 bg-green-500/10 text-green-400'
+                                            : 'border-red-500/50 bg-red-500/10 text-red-400'
+                                            }`}
+                                        >
+                                          {settings.enabled ? 'enabled' : 'disabled'}
+                                        </button>
+                                        <button
+                                          onClick={() => setAllowedGroups({ ...allowedGroups, [id]: { ...settings, requireMention: !settings.requireMention } })}
+                                          className={`text-xs px-2 py-0.5 rounded-full border transition-colors ${settings.requireMention
+                                            ? 'border-yellow-500/50 bg-yellow-500/10 text-yellow-400'
+                                            : 'border-green-500/50 bg-green-500/10 text-green-400'
+                                            }`}
+                                          title={settings.requireMention ? 'Bot only responds when @mentioned' : 'Bot responds to all messages'}
+                                        >
+                                          {settings.requireMention ? '@mention' : 'all msgs'}
+                                        </button>
+                                        <button
+                                          onClick={() => {
+                                            const next = { ...allowedGroups };
+                                            delete next[id];
+                                            setAllowedGroups(next);
+                                          }}
+                                          className="text-gray-500 hover:text-red-400"
+                                        >
+                                          <Trash2 size={14} />
+                                        </button>
+                                      </div>
+                                    </div>
+                                    <div className="px-3 pb-3 space-y-2">
+                                      <div>
+                                        <label className="block text-xs text-gray-500 mb-1">Group Policy</label>
+                                        <select
+                                          value={settings.groupPolicy}
+                                          onChange={(e) => setAllowedGroups({ ...allowedGroups, [id]: { ...settings, groupPolicy: e.target.value } })}
+                                          className="input-base text-xs py-1"
+                                        >
+                                          <option value="open">open — anyone can talk</option>
+                                          <option value="allowlist">allowlist — only allowed users</option>
+                                          <option value="disabled">disabled — no one</option>
+                                        </select>
+                                      </div>
+                                      <div>
+                                        <label className="block text-xs text-gray-500 mb-1">System Prompt (per-group)</label>
+                                        <textarea
+                                          value={settings.systemPrompt}
+                                          onChange={(e) => setAllowedGroups({ ...allowedGroups, [id]: { ...settings, systemPrompt: e.target.value } })}
+                                          placeholder="e.g. You are an investment analyst. Your research is in investments/."
+                                          className="input-base text-xs min-h-[60px] resize-y"
+                                          rows={2}
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                                {Object.keys(allowedGroups).length === 0 && (
+                                  <div className="text-xs text-gray-500 text-center py-2 italic">
+                                    No groups added. Bot will ignore all groups.
+                                  </div>
+                                )}
+                              </div>
+                              <p className="text-xs text-gray-500 mt-2">
+                                Each group gets its own settings. Use system prompts to give each group a unique personality/domain.
+                              </p>
                             </div>
-                            <div className="space-y-1 max-h-40 overflow-y-auto">
-                              {Object.entries(allowedGroups).map(([id, requireMention]) => (
-                                <div key={id} className="flex items-center justify-between text-sm bg-dark-500 px-3 py-1.5 rounded-lg border border-dark-400">
-                                  <span className="font-mono text-gray-300">{id}</span>
-                                  <div className="flex items-center gap-2">
+
+                            {/* Group Allowed Senders (groupAllowFrom) */}
+                            <div className="p-4 bg-dark-600 rounded-xl border border-dark-500">
+                              <label className="block text-sm text-gray-400 mb-2">Allowed Senders in Groups (User ID)</label>
+                              <div className="flex gap-2 mb-2">
+                                <input
+                                  type="text"
+                                  value={newGroupAllowFromInput}
+                                  onChange={(e) => setNewGroupAllowFromInput(e.target.value)}
+                                  placeholder="e.g. 123456789"
+                                  className="input-base text-sm"
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      e.preventDefault();
+                                      if (newGroupAllowFromInput && !groupAllowFromUsers.includes(newGroupAllowFromInput)) {
+                                        setGroupAllowFromUsers([...groupAllowFromUsers, newGroupAllowFromInput]);
+                                        setNewGroupAllowFromInput('');
+                                      }
+                                    }
+                                  }}
+                                />
+                                <button
+                                  onClick={() => {
+                                    if (newGroupAllowFromInput && !groupAllowFromUsers.includes(newGroupAllowFromInput)) {
+                                      setGroupAllowFromUsers([...groupAllowFromUsers, newGroupAllowFromInput]);
+                                      setNewGroupAllowFromInput('');
+                                    }
+                                  }}
+                                  className="btn-secondary p-2"
+                                >
+                                  <Plus size={16} />
+                                </button>
+                              </div>
+                              <div className="space-y-1 max-h-40 overflow-y-auto">
+                                {groupAllowFromUsers.map(id => (
+                                  <div key={id} className="flex items-center justify-between text-sm bg-dark-500 px-3 py-1.5 rounded-lg border border-dark-400">
+                                    <span className="font-mono text-gray-300">{id}</span>
                                     <button
-                                      onClick={() => setAllowedGroups({ ...allowedGroups, [id]: !requireMention })}
-                                      className={`text-xs px-2 py-0.5 rounded-full border transition-colors ${requireMention
-                                          ? 'border-yellow-500/50 bg-yellow-500/10 text-yellow-400'
-                                          : 'border-green-500/50 bg-green-500/10 text-green-400'
-                                        }`}
-                                      title={requireMention ? 'Bot only responds when @mentioned' : 'Bot responds to all messages'}
-                                    >
-                                      {requireMention ? '@mention required' : 'responds to all'}
-                                    </button>
-                                    <button
-                                      onClick={() => {
-                                        const next = { ...allowedGroups };
-                                        delete next[id];
-                                        setAllowedGroups(next);
-                                      }}
+                                      onClick={() => setGroupAllowFromUsers(groupAllowFromUsers.filter(u => u !== id))}
                                       className="text-gray-500 hover:text-red-400"
                                     >
                                       <Trash2 size={14} />
                                     </button>
                                   </div>
-                                </div>
-                              ))}
-                              {Object.keys(allowedGroups).length === 0 && (
-                                <div className="text-xs text-gray-500 text-center py-2 italic">
-                                  No groups added. Bot will ignore all groups.
-                                </div>
-                              )}
+                                ))}
+                                {groupAllowFromUsers.length === 0 && (
+                                  <div className="text-xs text-gray-500 text-center py-2 italic">
+                                    No senders restricted. All group members can interact.
+                                  </div>
+                                )}
+                              </div>
+                              <p className="text-xs text-gray-500 mt-2">
+                                Saved as <code className="px-1 py-0.5 bg-dark-500 rounded">channels.telegram.groupAllowFrom</code>. Numeric Telegram user IDs.
+                              </p>
                             </div>
-                            <p className="text-xs text-gray-500 mt-2">
-                              New groups default to <code className="px-1 py-0.5 bg-dark-500 rounded">responds to all</code>. Click the badge to toggle <code className="px-1 py-0.5 bg-dark-500 rounded">requireMention</code>.
-                            </p>
                           </div>
+                        )}
 
-                          {/* Group Allowed Senders (groupAllowFrom) */}
-                          <div className="p-4 bg-dark-600 rounded-xl border border-dark-500">
-                            <label className="block text-sm text-gray-400 mb-2">Allowed Senders in Groups (User ID)</label>
+                        {/* DM allowFrom: shown when dmPolicy is 'pairing' or 'allowlist' */}
+                        {field.key === 'dmPolicy' && (configForm[field.key] === 'pairing' || configForm[field.key] === 'allowlist') && (
+                          <div className="mt-3 p-4 bg-dark-600 rounded-xl border border-dark-500">
+                            <label className="block text-sm text-gray-400 mb-2">Allowed DM Users (User ID)</label>
                             <div className="flex gap-2 mb-2">
                               <input
                                 type="text"
-                                value={newGroupAllowFromInput}
-                                onChange={(e) => setNewGroupAllowFromInput(e.target.value)}
+                                value={newAllowFromInput}
+                                onChange={(e) => setNewAllowFromInput(e.target.value)}
                                 placeholder="e.g. 123456789"
                                 className="input-base text-sm"
                                 onKeyDown={(e) => {
                                   if (e.key === 'Enter') {
                                     e.preventDefault();
-                                    if (newGroupAllowFromInput && !groupAllowFromUsers.includes(newGroupAllowFromInput)) {
-                                      setGroupAllowFromUsers([...groupAllowFromUsers, newGroupAllowFromInput]);
-                                      setNewGroupAllowFromInput('');
+                                    if (newAllowFromInput && !allowFromUsers.includes(newAllowFromInput)) {
+                                      setAllowFromUsers([...allowFromUsers, newAllowFromInput]);
+                                      setNewAllowFromInput('');
                                     }
                                   }
                                 }}
                               />
                               <button
                                 onClick={() => {
-                                  if (newGroupAllowFromInput && !groupAllowFromUsers.includes(newGroupAllowFromInput)) {
-                                    setGroupAllowFromUsers([...groupAllowFromUsers, newGroupAllowFromInput]);
-                                    setNewGroupAllowFromInput('');
+                                  if (newAllowFromInput && !allowFromUsers.includes(newAllowFromInput)) {
+                                    setAllowFromUsers([...allowFromUsers, newAllowFromInput]);
+                                    setNewAllowFromInput('');
                                   }
                                 }}
                                 className="btn-secondary p-2"
@@ -881,90 +1070,32 @@ export function Channels() {
                               </button>
                             </div>
                             <div className="space-y-1 max-h-40 overflow-y-auto">
-                              {groupAllowFromUsers.map(id => (
+                              {allowFromUsers.map(id => (
                                 <div key={id} className="flex items-center justify-between text-sm bg-dark-500 px-3 py-1.5 rounded-lg border border-dark-400">
                                   <span className="font-mono text-gray-300">{id}</span>
                                   <button
-                                    onClick={() => setGroupAllowFromUsers(groupAllowFromUsers.filter(u => u !== id))}
+                                    onClick={() => setAllowFromUsers(allowFromUsers.filter(u => u !== id))}
                                     className="text-gray-500 hover:text-red-400"
                                   >
                                     <Trash2 size={14} />
                                   </button>
                                 </div>
                               ))}
-                              {groupAllowFromUsers.length === 0 && (
+                              {allowFromUsers.length === 0 && (
                                 <div className="text-xs text-gray-500 text-center py-2 italic">
-                                  No senders restricted. All group members can interact.
+                                  {configForm[field.key] === 'pairing'
+                                    ? 'Users will be added automatically via pairing flow.'
+                                    : 'No users allowed. Add user IDs above.'}
                                 </div>
                               )}
                             </div>
                             <p className="text-xs text-gray-500 mt-2">
-                              Saved as <code className="px-1 py-0.5 bg-dark-500 rounded">channels.telegram.groupAllowFrom</code>. Numeric Telegram user IDs.
+                              Saved as <code className="px-1 py-0.5 bg-dark-500 rounded">channels.telegram.allowFrom</code>. Numeric Telegram user IDs.
                             </p>
                           </div>
-                        </div>
-                      )}
-
-                      {/* DM allowFrom: shown when dmPolicy is 'pairing' or 'allowlist' */}
-                      {field.key === 'dmPolicy' && (configForm[field.key] === 'pairing' || configForm[field.key] === 'allowlist') && (
-                        <div className="mt-3 p-4 bg-dark-600 rounded-xl border border-dark-500">
-                          <label className="block text-sm text-gray-400 mb-2">Allowed DM Users (User ID)</label>
-                          <div className="flex gap-2 mb-2">
-                            <input
-                              type="text"
-                              value={newAllowFromInput}
-                              onChange={(e) => setNewAllowFromInput(e.target.value)}
-                              placeholder="e.g. 123456789"
-                              className="input-base text-sm"
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                  e.preventDefault();
-                                  if (newAllowFromInput && !allowFromUsers.includes(newAllowFromInput)) {
-                                    setAllowFromUsers([...allowFromUsers, newAllowFromInput]);
-                                    setNewAllowFromInput('');
-                                  }
-                                }
-                              }}
-                            />
-                            <button
-                              onClick={() => {
-                                if (newAllowFromInput && !allowFromUsers.includes(newAllowFromInput)) {
-                                  setAllowFromUsers([...allowFromUsers, newAllowFromInput]);
-                                  setNewAllowFromInput('');
-                                }
-                              }}
-                              className="btn-secondary p-2"
-                            >
-                              <Plus size={16} />
-                            </button>
-                          </div>
-                          <div className="space-y-1 max-h-40 overflow-y-auto">
-                            {allowFromUsers.map(id => (
-                              <div key={id} className="flex items-center justify-between text-sm bg-dark-500 px-3 py-1.5 rounded-lg border border-dark-400">
-                                <span className="font-mono text-gray-300">{id}</span>
-                                <button
-                                  onClick={() => setAllowFromUsers(allowFromUsers.filter(u => u !== id))}
-                                  className="text-gray-500 hover:text-red-400"
-                                >
-                                  <Trash2 size={14} />
-                                </button>
-                              </div>
-                            ))}
-                            {allowFromUsers.length === 0 && (
-                              <div className="text-xs text-gray-500 text-center py-2 italic">
-                                {configForm[field.key] === 'pairing'
-                                  ? 'Users will be added automatically via pairing flow.'
-                                  : 'No users allowed. Add user IDs above.'}
-                              </div>
-                            )}
-                          </div>
-                          <p className="text-xs text-gray-500 mt-2">
-                            Saved as <code className="px-1 py-0.5 bg-dark-500 rounded">channels.telegram.allowFrom</code>. Numeric Telegram user IDs.
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                        )}
+                      </div>
+                    ))}
 
                   {/* WhatsApp special handling: QR code login button */}
                   {currentChannel.channel_type === 'whatsapp' && (
@@ -1008,6 +1139,276 @@ export function Channels() {
                       <p className="text-xs text-gray-500 mt-2 text-center">
                         After successful login, click the button on the right to refresh status, or run: openclaw channels login --channel whatsapp
                       </p>
+                    </div>
+                  )}
+
+                  {/* Telegram Multi-Bot Accounts */}
+                  {currentChannel.channel_type === 'telegram' && (
+                    <div className="mt-6 p-4 bg-dark-600 rounded-xl border border-dark-500">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          <Bot size={18} className="text-blue-400" />
+                          <h4 className="text-sm font-semibold text-white">Bot Accounts</h4>
+                          <span className="text-xs text-gray-500">Multi-agent routing</span>
+                        </div>
+                        <button
+                          onClick={() => setShowAddAccountDialog(true)}
+                          className="btn-secondary text-xs flex items-center gap-1 py-1 px-2"
+                        >
+                          <Plus size={14} /> Add Bot
+                        </button>
+                      </div>
+
+                      {telegramAccounts.length === 0 ? (
+                        <div className="text-xs text-gray-500 text-center py-4 italic">
+                          No bot accounts configured. Your existing bot token is used as a single agent.
+                          <br />Add multiple bots to route each to a different agent.
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          {telegramAccounts.map(acct => (
+                            <div key={acct.id} className="bg-dark-500 rounded-lg border border-dark-400 overflow-hidden">
+                              <div
+                                className="flex items-center justify-between px-3 py-2 cursor-pointer hover:bg-dark-400/50 transition-colors"
+                                onClick={() => setExpandedAccount(expandedAccount === acct.id ? null : acct.id)}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <Bot size={14} className="text-blue-400" />
+                                  <span className="font-mono text-sm text-gray-200">{acct.id}</span>
+                                  <span className="text-xs text-gray-500 font-mono">{'•••' + acct.bot_token.slice(-6)}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <Settings size={14} className={expandedAccount === acct.id ? 'text-claw-400' : 'text-gray-500'} />
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); handleDeleteAccount(acct.id); }}
+                                    className="text-gray-500 hover:text-red-400"
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                </div>
+                              </div>
+
+                              {expandedAccount === acct.id && (
+                                <div className="px-3 pb-3 space-y-3 border-t border-dark-400 pt-2">
+                                  <div>
+                                    <label className="block text-xs text-gray-500 mb-1">Bot Token</label>
+                                    <input
+                                      type="password"
+                                      value={acct.bot_token}
+                                      onChange={(e) => {
+                                        const updated = telegramAccounts.map(a => a.id === acct.id ? { ...a, bot_token: e.target.value } : a);
+                                        setTelegramAccounts(updated);
+                                      }}
+                                      className="input-base text-xs"
+                                    />
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-2">
+                                    <div>
+                                      <label className="block text-xs text-gray-500 mb-1">Group Policy</label>
+                                      <select
+                                        value={acct.group_policy || 'open'}
+                                        onChange={(e) => {
+                                          const updated = telegramAccounts.map(a => a.id === acct.id ? { ...a, group_policy: e.target.value } : a);
+                                          setTelegramAccounts(updated);
+                                        }}
+                                        className="input-base text-xs py-1"
+                                      >
+                                        <option value="open">open</option>
+                                        <option value="allowlist">allowlist</option>
+                                        <option value="disabled">disabled</option>
+                                      </select>
+                                    </div>
+                                    <div>
+                                      <label className="block text-xs text-gray-500 mb-1">DM Policy</label>
+                                      <select
+                                        value={acct.dm_policy || 'pairing'}
+                                        onChange={(e) => {
+                                          const updated = telegramAccounts.map(a => a.id === acct.id ? { ...a, dm_policy: e.target.value } : a);
+                                          setTelegramAccounts(updated);
+                                        }}
+                                        className="input-base text-xs py-1"
+                                      >
+                                        <option value="pairing">pairing</option>
+                                        <option value="open">open</option>
+                                        <option value="disabled">disabled</option>
+                                      </select>
+                                    </div>
+                                  </div>
+
+                                  <div>
+                                    <label className="block text-xs text-gray-500 mb-1">Exclusive Topics (Allowlist)</label>
+                                    <input
+                                      type="text"
+                                      value={acct.exclusive_topics?.join(', ') || ''}
+                                      onChange={(e) => {
+                                        const val = e.target.value;
+                                        const topics = val ? val.split(',').map(s => s.trim()).filter(Boolean) : undefined;
+                                        const updated = telegramAccounts.map(a => a.id === acct.id ? { ...a, exclusive_topics: topics } : a);
+                                        setTelegramAccounts(updated);
+                                      }}
+                                      placeholder="Comma-separated Topic IDs (e.g. 42, 45). Leave empty to allow all."
+                                      className="input-base text-xs"
+                                    />
+                                    <p className="text-[10px] text-gray-500 mt-1">If set, bot will <strong>only</strong> respond in these topics and ignore all others.</p>
+                                  </div>
+
+                                  {/* Groups Management (shown when allowlist) */}
+                                  {acct.group_policy === 'allowlist' && (() => {
+                                    const groups = (acct.groups || {}) as Record<string, { enabled?: boolean; requireMention?: boolean; topics?: Record<string, { requireMention?: boolean }> }>;
+                                    const updateGroups = (newGroups: typeof groups) => {
+                                      const updated = telegramAccounts.map(a => a.id === acct.id ? { ...a, groups: newGroups } : a);
+                                      setTelegramAccounts(updated);
+                                    };
+                                    return (
+                                      <div className="p-3 bg-dark-600 rounded-lg border border-dark-500 space-y-2">
+                                        <div className="flex items-center justify-between">
+                                          <label className="text-xs text-gray-400 font-semibold">Allowed Groups</label>
+                                        </div>
+                                        <div className="flex gap-2">
+                                          <input
+                                            type="text"
+                                            placeholder="Group Chat ID, e.g. -1003726801732"
+                                            className="input-base text-xs flex-1"
+                                            onKeyDown={(e) => {
+                                              if (e.key === 'Enter') {
+                                                const val = (e.target as HTMLInputElement).value.trim();
+                                                if (val && !(val in groups)) {
+                                                  updateGroups({ ...groups, [val]: { enabled: true, requireMention: true } });
+                                                  (e.target as HTMLInputElement).value = '';
+                                                }
+                                              }
+                                            }}
+                                            id={`add-group-${acct.id}`}
+                                          />
+                                          <button
+                                            onClick={() => {
+                                              const input = document.getElementById(`add-group-${acct.id}`) as HTMLInputElement;
+                                              const val = input?.value.trim();
+                                              if (val && !(val in groups)) {
+                                                updateGroups({ ...groups, [val]: { enabled: true, requireMention: true } });
+                                                input.value = '';
+                                              }
+                                            }}
+                                            className="btn-secondary p-1.5"
+                                          >
+                                            <Plus size={14} />
+                                          </button>
+                                        </div>
+
+                                        {Object.entries(groups).map(([gid, gsettings]) => (
+                                          <div key={gid} className="bg-dark-700 rounded-lg border border-dark-500 overflow-hidden">
+                                            <div className="flex items-center justify-between px-2 py-1.5">
+                                              <span className="font-mono text-xs text-gray-300">{gid}</span>
+                                              <div className="flex items-center gap-1.5">
+                                                <button
+                                                  onClick={() => updateGroups({ ...groups, [gid]: { ...gsettings, enabled: !gsettings.enabled } })}
+                                                  className={`text-[10px] px-1.5 py-0.5 rounded-full border ${gsettings.enabled !== false
+                                                    ? 'border-green-500/50 bg-green-500/10 text-green-400'
+                                                    : 'border-red-500/50 bg-red-500/10 text-red-400'}`}
+                                                >
+                                                  {gsettings.enabled !== false ? 'on' : 'off'}
+                                                </button>
+                                                <button
+                                                  onClick={() => updateGroups({ ...groups, [gid]: { ...gsettings, requireMention: !gsettings.requireMention } })}
+                                                  className={`text-[10px] px-1.5 py-0.5 rounded-full border ${gsettings.requireMention
+                                                    ? 'border-yellow-500/50 bg-yellow-500/10 text-yellow-400'
+                                                    : 'border-green-500/50 bg-green-500/10 text-green-400'}`}
+                                                  title={gsettings.requireMention ? 'Only responds when @mentioned' : 'Responds to all messages'}
+                                                >
+                                                  {gsettings.requireMention ? '@mention' : 'all msgs'}
+                                                </button>
+                                                <button
+                                                  onClick={() => {
+                                                    const next = { ...groups };
+                                                    delete next[gid];
+                                                    updateGroups(next);
+                                                  }}
+                                                  className="text-gray-500 hover:text-red-400"
+                                                >
+                                                  <Trash2 size={12} />
+                                                </button>
+                                              </div>
+                                            </div>
+
+                                            {/* (Topic configuration moved to Exclusive Topics above) */}
+                                            <div className="px-2 pb-1">
+                                              <p className="text-[10px] text-gray-600 italic">
+                                                Use <strong>Exclusive Topics</strong> above to restrict this bot to specific topics.
+                                              </p>
+                                            </div>
+                                          </div>
+                                        ))}
+
+                                        {Object.keys(groups).length === 0 && (
+                                          <p className="text-[10px] text-gray-500 italic text-center py-1">No groups added. Bot will ignore all groups.</p>
+                                        )}
+                                      </div>
+                                    );
+                                  })()}
+
+                                  <button
+                                    onClick={() => handleSaveAccount(acct)}
+                                    disabled={savingAccount}
+                                    className="btn-primary text-xs py-1 px-3 flex items-center gap-1"
+                                  >
+                                    {savingAccount ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
+                                    Save Account
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      <p className="text-xs text-gray-500 mt-2">
+                        Each bot account can be bound to a different agent via <strong>Agents → Routing Rules</strong> using Account ID.
+                      </p>
+
+                      {/* Add Account Dialog */}
+                      {showAddAccountDialog && (
+                        <div className="mt-3 p-3 bg-dark-700 rounded-lg border border-claw-500/30">
+                          <h5 className="text-sm font-medium text-white mb-2">Add Bot Account</h5>
+                          <div className="space-y-2">
+                            <input
+                              type="text"
+                              value={newAccountId}
+                              onChange={e => setNewAccountId(e.target.value)}
+                              placeholder="Account ID (e.g. researchbot)"
+                              className="input-base text-sm"
+                            />
+                            <input
+                              type="password"
+                              value={newAccountToken}
+                              onChange={e => setNewAccountToken(e.target.value)}
+                              placeholder="Bot Token from @BotFather"
+                              className="input-base text-sm"
+                            />
+                            <div className="flex gap-2">
+                              <button
+                                onClick={async () => {
+                                  if (newAccountId && newAccountToken) {
+                                    await handleSaveAccount({ id: newAccountId, bot_token: newAccountToken });
+                                    setNewAccountId('');
+                                    setNewAccountToken('');
+                                    setShowAddAccountDialog(false);
+                                  }
+                                }}
+                                disabled={!newAccountId || !newAccountToken || savingAccount}
+                                className="btn-primary text-xs py-1.5 px-3"
+                              >
+                                {savingAccount ? 'Saving...' : 'Add'}
+                              </button>
+                              <button
+                                onClick={() => { setShowAddAccountDialog(false); setNewAccountId(''); setNewAccountToken(''); }}
+                                className="btn-secondary text-xs py-1.5 px-3"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
 
