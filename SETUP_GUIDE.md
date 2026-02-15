@@ -1,39 +1,81 @@
-# 🚀 OpenClaw Manager — Windows Setup Guide
+# 🚀 OpenClaw Manager — Setup Guide
 
-## Prerequisites
+## For End Users (Download Release)
 
-Install the following before proceeding:
+If you downloaded a release build (`.msi`, `.exe`, `.dmg`, or `.AppImage`), just **open the app** — the built-in **Setup Wizard** will automatically:
+
+1. ✅ Detect your operating system
+2. ✅ Check for **Node.js** (>= 18) and **Git**
+3. ✅ One-click install any missing prerequisites
+4. ✅ Install **OpenClaw** and initialize configuration
+
+No terminal required.
+
+---
+
+## For Developers (Build From Source)
+
+### Prerequisites
 
 | Requirement | Version | Download |
 |-------------|---------|----------|
 | **Node.js** | >= 18.0 | [nodejs.org](https://nodejs.org/) |
 | **Rust** | >= 1.70 | [rustup.rs](https://rustup.rs/) |
-| **Microsoft C++ Build Tools** | Latest | [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) |
-| **WebView2** | Latest | [WebView2 Runtime](https://developer.microsoft.com/en-us/microsoft-edge/webview2/) *(pre-installed on Windows 10/11)* |
+| **Git** | Latest | [git-scm.com](https://git-scm.com/) |
 
 > [!TIP]
-> You can verify your installations by running:
+> Verify installations:
 > ```bash
-> node --version
-> rustc --version
+> node --version    # Should print v18.x or higher
+> rustc --version   # Should print 1.70 or higher
+> git --version
 > ```
 
----
+### Platform-Specific Dependencies
 
-## Step 1 — Open a Terminal in the Project Directory
+<details>
+<summary><b>🪟 Windows</b></summary>
 
-**This is critical.** You must be inside the project folder before running any commands.
+- [Microsoft C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) — select **"Desktop development with C++"** workload
+- [WebView2 Runtime](https://developer.microsoft.com/en-us/microsoft-edge/webview2/) *(pre-installed on Windows 10/11)*
+</details>
+
+<details>
+<summary><b>🍎 macOS</b></summary>
 
 ```bash
-cd D:\Ai\openclaw-manager
+xcode-select --install
 ```
+</details>
 
-> [!CAUTION]
-> If you skip this step, `npm install` will fail with `ENOENT: no such file or directory` because it can't find `package.json`.
+<details>
+<summary><b>🐧 Linux (Ubuntu/Debian)</b></summary>
+
+```bash
+sudo apt update
+sudo apt install libwebkit2gtk-4.1-dev build-essential curl wget file \
+  libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+```
+</details>
+
+<details>
+<summary><b>🐧 Linux (Fedora)</b></summary>
+
+```bash
+sudo dnf install webkit2gtk4.1-devel openssl-devel curl wget file libxdo-devel
+```
+</details>
 
 ---
 
-## Step 2 — Install Dependencies
+### Step 1 — Clone the Repository
+
+```bash
+git clone https://github.com/MrFadiAi/openclaw-one-click-installer.git
+cd openclaw-one-click-installer
+```
+
+### Step 2 — Install Dependencies
 
 ```bash
 npm install
@@ -41,9 +83,7 @@ npm install
 
 This installs all frontend (React, Vite, TailwindCSS) and Tauri CLI dependencies.
 
----
-
-## Step 3 — Run in Development Mode
+### Step 3 — Run in Development Mode
 
 ```bash
 npm run tauri:dev
@@ -51,57 +91,78 @@ npm run tauri:dev
 
 This will:
 1. Start the **Vite** dev server (React frontend with hot-reload)
-2. Compile the **Rust** backend (first run takes a few minutes)
+2. Compile the **Rust** backend (first run takes 3–5 minutes)
 3. Open the native desktop application window
 
 > [!NOTE]
-> The first build compiles all Rust dependencies and can take **3–5 minutes**. Subsequent runs are much faster.
+> The first build compiles all Rust dependencies and can take **3–5 minutes**. Subsequent runs are much faster due to caching.
 
 ---
 
-## Other Useful Commands
-
-Run all commands from `D:\Ai\openclaw-manager`:
+## Useful Commands
 
 | Command | Description |
 |---------|-------------|
 | `npm run dev` | Run frontend only in the browser (no Tauri) |
 | `npm run build` | Build the frontend |
-| `npm run tauri:build` | Build a release `.msi` / `.exe` installer |
+| `npm run tauri:dev` | Full desktop app with hot-reload |
+| `npm run tauri:build` | Build release installer (`.msi` / `.exe` / `.dmg`) |
 | `cd src-tauri && cargo check` | Check Rust code for errors |
 | `cd src-tauri && cargo test` | Run Rust tests |
 
 ---
 
-## Troubleshooting
+## App Features Overview
 
-### `npm install` fails with `ENOENT`
-Make sure you're in the correct directory:
-```bash
-cd D:\Ai\openclaw-manager
-```
+Once the app is running, you'll find these sections in the sidebar:
 
-### Tauri version mismatch
-If you see errors about mismatched versions (e.g., `tauri (v2.10.x) : @tauri-apps/api (v2.9.x)`), run:
-```bash
-npm install
-```
-This will update the dependency versions to match the installed Rust crate.
-
-
-### Rust compilation errors
-Ensure you have the C++ Build Tools installed. Open **Visual Studio Installer** → select **"Desktop development with C++"** workload.
-
-### WebView2 missing
-Download and install the [WebView2 Evergreen Runtime](https://developer.microsoft.com/en-us/microsoft-edge/webview2/).
+| Page | What It Does |
+|------|-------------|
+| **Overview** | Service status dashboard, quick actions (start/stop/restart), system requirements panel |
+| **MCPs** | Manage MCP servers — add, edit, test, enable/disable. Installs mcporter. Auto-syncs to `~/.mcporter/mcporter.json` |
+| **Skills** | Browse and install OpenClaw skills via ClawHub |
+| **AI Config** | Configure AI providers (14+), set API keys, choose primary model |
+| **Channels** | Set up messaging integrations (Telegram, Discord, Feishu, Slack, etc.) |
+| **Testing** | Run system, AI, and channel connectivity diagnostics |
+| **Logs** | View structured application logs with level filtering and export |
+| **Settings** | General application settings |
 
 ---
 
 ## Build Output
 
 After `npm run tauri:build`, the installer will be in:
+
 ```
 src-tauri/target/release/bundle/
-├── msi/    → .msi installer
-└── nsis/   → .exe installer
+├── msi/    → .msi installer (Windows)
+├── nsis/   → .exe installer (Windows)
+├── dmg/    → .dmg image (macOS)
+├── deb/    → .deb package (Linux)
+└── appimage/ → .AppImage (Linux)
 ```
+
+---
+
+## Troubleshooting
+
+### `npm install` fails with `ENOENT`
+Make sure you're in the correct project directory.
+
+### Tauri version mismatch
+If you see errors about mismatched versions, run `npm install` to update dependencies.
+
+### Rust compilation errors
+Ensure you have the C++ Build Tools installed:
+- **Windows**: Open Visual Studio Installer → select **"Desktop development with C++"**
+- **macOS**: Run `xcode-select --install`
+
+### WebView2 missing (Windows)
+Download and install the [WebView2 Evergreen Runtime](https://developer.microsoft.com/en-us/microsoft-edge/webview2/).
+
+### macOS "Damaged, cannot be opened"
+```bash
+xattr -cr /Applications/OpenClaw\ Manager.app
+```
+
+Or go to **System Preferences** > **Privacy & Security** → click **Open Anyway**.
