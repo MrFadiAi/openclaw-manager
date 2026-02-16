@@ -47,6 +47,7 @@ fn main() {
             // Gateway Token
             config::get_or_create_gateway_token,
             config::get_dashboard_url,
+            config::repair_device_token,
             // AI configuration management
             config::get_official_providers,
             config::get_ai_config,

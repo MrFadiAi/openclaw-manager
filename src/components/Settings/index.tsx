@@ -647,7 +647,8 @@ export function Settings({ onEnvironmentChange }: SettingsProps) {
 
             {!uninstallResult ? (
               <>
-                <p className="text-gray-300 mb-6">Are you sure? This will remove the CLI tool but keep your config.</p>
+                <p className="text-gray-300 mb-4">Are you sure? This will <span className="text-red-400 font-semibold">permanently delete</span> the entire <code className="bg-dark-600 px-1.5 py-0.5 rounded text-red-300 text-xs">~/.openclaw</code> folder (all configs, agents, and data) and uninstall the OpenClaw CLI.</p>
+                <p className="text-yellow-400/80 text-xs mb-6 flex items-center gap-2"><AlertTriangle size={14} /> This action cannot be undone.</p>
                 <div className="flex gap-3">
                   <button onClick={() => setShowUninstallConfirm(false)} className="flex-1 btn-secondary">Cancel</button>
                   <button onClick={handleUninstall} disabled={uninstalling} className="flex-1 btn-primary bg-red-600 hover:bg-red-500 flex justify-center gap-2">

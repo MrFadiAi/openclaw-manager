@@ -205,6 +205,85 @@ pub async fn get_dashboard_url() -> Result<String, String> {
     Ok(url)
 }
 
+/// Repair device token mismatch by deleting stale identity and paired device files.
+/// After calling this, the gateway should be restarted to regenerate fresh device identity.
+#[command]
+pub async fn repair_device_token() -> Result<String, String> {
+    info!("[Device Token Repair] Starting device token repair...");
+
+    let config_dir = platform::get_config_dir();
+    let identity_file = format!(
+        "{}{}identity{}device.json",
+        config_dir,
+        std::path::MAIN_SEPARATOR,
+        std::path::MAIN_SEPARATOR
+    );
+    let paired_file = format!(
+        "{}{}devices{}paired.json",
+        config_dir,
+        std::path::MAIN_SEPARATOR,
+        std::path::MAIN_SEPARATOR
+    );
+
+    let mut deleted = Vec::new();
+
+    // Delete identity/device.json (stale device keypair)
+    match std::fs::remove_file(&identity_file) {
+        Ok(_) => {
+            info!("[Device Token Repair] Deleted: {}", identity_file);
+            deleted.push("identity/device.json".to_string());
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            info!("[Device Token Repair] Not found (already clean): {}", identity_file);
+        }
+        Err(e) => {
+            warn!("[Device Token Repair] Failed to delete {}: {}", identity_file, e);
+        }
+    }
+
+    // Delete devices/paired.json (stale paired device entries)
+    match std::fs::remove_file(&paired_file) {
+        Ok(_) => {
+            info!("[Device Token Repair] Deleted: {}", paired_file);
+            deleted.push("devices/paired.json".to_string());
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            info!("[Device Token Repair] Not found (already clean): {}", paired_file);
+        }
+        Err(e) => {
+            warn!("[Device Token Repair] Failed to delete {}: {}", paired_file, e);
+        }
+    }
+
+    // Delete identity/device-auth.json (stale device auth token)
+    let device_auth_file = format!(
+        "{}{}identity{}device-auth.json",
+        config_dir,
+        std::path::MAIN_SEPARATOR,
+        std::path::MAIN_SEPARATOR
+    );
+    match std::fs::remove_file(&device_auth_file) {
+        Ok(_) => {
+            info!("[Device Token Repair] Deleted: {}", device_auth_file);
+            deleted.push("identity/device-auth.json".to_string());
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            info!("[Device Token Repair] Not found (already clean): {}", device_auth_file);
+        }
+        Err(e) => {
+            warn!("[Device Token Repair] Failed to delete {}: {}", device_auth_file, e);
+        }
+    }
+
+    if deleted.is_empty() {
+        info!("[Device Token Repair] No stale files found, identity was already clean");
+        Ok("Device identity already clean. Please restart the service.".to_string())
+    } else {
+        info!("[Device Token Repair] Cleaned {} stale file(s): {:?}", deleted.len(), deleted);
+        Ok(format!("Cleaned stale device files: {}. Please restart the service.", deleted.join(", ")))
+    }
+}
+
 // ============ AI Configuration Commands ============
 
 /// Get official Provider list (preset templates)
@@ -1782,32 +1861,37 @@ pub async fn save_telegram_account(account: TelegramAccount) -> Result<String, S
     }
     if let Some(dp) = &account.dm_policy {
         acct_obj["dmPolicy"] = json!(dp);
-        // Fix for validation error: dmPolicy="open" requires allowFrom to include "*"
-        if dp == "open" {
-             acct_obj["allowFrom"] = json!(["*"]);
-        } else if let Some(ref af) = account.allow_from {
-            if !af.is_empty() {
-                // Convert string IDs to numbers where possible for Core compatibility
-                let allow_vals: Vec<serde_json::Value> = af.iter().map(|id| {
-                    if let Ok(n) = id.parse::<i64>() { json!(n) } else { json!(id) }
-                }).collect();
-                acct_obj["allowFrom"] = json!(allow_vals);
-            }
-        } else {
-            // Auto-inherit from primary bot if no explicit allow_from provided
-            let primary_id = load_manager_config()
-                .unwrap_or(json!({}))
-                .pointer("/primaryBotAccount")
-                .and_then(|v| v.as_str())
-                .map(|s| s.to_string());
-            if let Some(pid) = primary_id {
-                if pid != account.id {
-                    // Read primary account's allowFrom
-                    if let Some(primary_allow) = config.pointer(&format!("/channels/telegram/accounts/{}/allowFrom", pid))
-                        .and_then(|v| v.as_array()) {
-                        if !primary_allow.is_empty() && primary_allow.iter().any(|v| v.as_str() != Some("*")) {
-                            acct_obj["allowFrom"] = json!(primary_allow);
-                        }
+    }
+
+    // Save allowFrom (DM user IDs) — handled independently of dm_policy
+    info!("[Telegram Accounts] allow_from received: {:?}", account.allow_from);
+    let dm_policy_str = account.dm_policy.as_deref().unwrap_or("");
+    if dm_policy_str == "open" {
+        // dmPolicy="open" requires allowFrom to include "*"
+        acct_obj["allowFrom"] = json!(["*"]);
+    } else if let Some(ref af) = account.allow_from {
+        if !af.is_empty() {
+            // Convert string IDs to numbers where possible for Core compatibility
+            let allow_vals: Vec<serde_json::Value> = af.iter().map(|id| {
+                if let Ok(n) = id.parse::<i64>() { json!(n) } else { json!(id) }
+            }).collect();
+            info!("[Telegram Accounts] Saving allowFrom: {:?}", allow_vals);
+            acct_obj["allowFrom"] = json!(allow_vals);
+        }
+    } else {
+        // Auto-inherit from primary bot if no explicit allow_from provided
+        let primary_id = load_manager_config()
+            .unwrap_or(json!({}))
+            .pointer("/primaryBotAccount")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
+        if let Some(pid) = primary_id {
+            if pid != account.id {
+                // Read primary account's allowFrom
+                if let Some(primary_allow) = config.pointer(&format!("/channels/telegram/accounts/{}/allowFrom", pid))
+                    .and_then(|v| v.as_array()) {
+                    if !primary_allow.is_empty() && primary_allow.iter().any(|v| v.as_str() != Some("*")) {
+                        acct_obj["allowFrom"] = json!(primary_allow);
                     }
                 }
             }

@@ -6,7 +6,7 @@ import { QuickActions } from './QuickActions';
 import { SystemInfo } from './SystemInfo';
 import { Setup } from '../Setup';
 import { api, ServiceStatus, isTauri } from '../../lib/tauri';
-import { Terminal, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react';
+import { Terminal, RefreshCw, ChevronDown, ChevronUp, AlertTriangle, Wrench, Loader2 } from 'lucide-react';
 import clsx from 'clsx';
 import { EnvironmentStatus } from '../../App';
 
@@ -23,6 +23,9 @@ export function Dashboard({ envStatus, onSetupComplete }: DashboardProps) {
   const [logsExpanded, setLogsExpanded] = useState(true);
   const [autoRefreshLogs, setAutoRefreshLogs] = useState(true);
   const logsEndRef = useRef<HTMLDivElement>(null);
+  const [tokenMismatch, setTokenMismatch] = useState(false);
+  const [repairing, setRepairing] = useState(false);
+  const [repairDismissed, setRepairDismissed] = useState(false);
 
   const fetchStatus = async () => {
     if (!isTauri()) {
@@ -62,6 +65,13 @@ export function Dashboard({ envStatus, onSetupComplete }: DashboardProps) {
       if (logsInterval) clearInterval(logsInterval);
     };
   }, [autoRefreshLogs]);
+
+  // Detect device_token_mismatch from logs
+  useEffect(() => {
+    if (repairDismissed) return;
+    const hasMismatch = logs.some(line => line.includes('device_token_mismatch'));
+    setTokenMismatch(hasMismatch);
+  }, [logs, repairDismissed]);
 
   // Auto scroll to bottom of logs
   useEffect(() => {
@@ -126,6 +136,24 @@ export function Dashboard({ envStatus, onSetupComplete }: DashboardProps) {
     }
   };
 
+  const handleRepairDeviceToken = async () => {
+    if (!isTauri()) return;
+    setRepairing(true);
+    try {
+      await invoke<string>('repair_device_token');
+      await api.restartService();
+      setRepairDismissed(true);
+      setTokenMismatch(false);
+      await fetchStatus();
+      await fetchLogs();
+    } catch (e) {
+      console.error('Device token repair failed:', e);
+      alert(`Repair failed: ${e}`);
+    } finally {
+      setRepairing(false);
+    }
+  };
+
   const getLogLineClass = (line: string) => {
     if (line.includes('error') || line.includes('Error') || line.includes('ERROR')) {
       return 'text-red-400';
@@ -169,6 +197,45 @@ export function Dashboard({ envStatus, onSetupComplete }: DashboardProps) {
         {needsSetup && (
           <motion.div variants={itemVariants}>
             <Setup onComplete={onSetupComplete} embedded />
+          </motion.div>
+        )}
+
+        {/* Device token mismatch warning banner */}
+        {tokenMismatch && !repairDismissed && (
+          <motion.div variants={itemVariants}>
+            <div className="bg-amber-500/10 rounded-2xl p-5 border border-amber-500/30">
+              <div className="flex items-start gap-4">
+                <div className="p-2 bg-amber-500/20 rounded-lg shrink-0 mt-0.5">
+                  <AlertTriangle size={20} className="text-amber-400" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-sm font-semibold text-amber-300 mb-1">
+                    Device Token Mismatch Detected
+                  </h3>
+                  <p className="text-xs text-amber-200/70 leading-relaxed">
+                    The gateway is rejecting connections because the device identity is out of sync.
+                    This usually happens after a reinstall or config migration. Click the button below
+                    to reset the device identity and restart the service.
+                  </p>
+                </div>
+                <button
+                  onClick={handleRepairDeviceToken}
+                  disabled={repairing}
+                  className={clsx(
+                    'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all shrink-0',
+                    'bg-amber-500/20 text-amber-300 border border-amber-500/40',
+                    'hover:bg-amber-500/30 disabled:opacity-50'
+                  )}
+                >
+                  {repairing ? (
+                    <Loader2 size={14} className="animate-spin" />
+                  ) : (
+                    <Wrench size={14} />
+                  )}
+                  {repairing ? 'Fixing...' : 'Fix & Restart'}
+                </button>
+              </div>
+            </div>
           </motion.div>
         )}
 

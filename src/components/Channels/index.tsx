@@ -26,8 +26,166 @@ import {
   Plus,
   Bot,
   Settings,
+  Users,
 } from 'lucide-react';
 import clsx from 'clsx';
+
+// Reusable component for DM Allowlist management with Fetch capability
+const DmAllowListEditor = ({
+  allowedUsers = [],
+  onUpdate,
+  botToken,
+  placeholderText = "Users will be added automatically via pairing flow."
+}: {
+  allowedUsers: string[],
+  onUpdate: (users: string[]) => void,
+  botToken?: string,
+  placeholderText?: string
+}) => {
+  const [inputVal, setInputVal] = useState('');
+  const [fetching, setFetching] = useState(false);
+  const [discovered, setDiscovered] = useState<{ id: string; name: string; username?: string }[]>([]);
+
+  const fetchUsers = async () => {
+    if (!botToken) { alert('Bot Token is required.'); return; }
+    setFetching(true);
+    setDiscovered([]);
+    try {
+      const res = await fetch(`https://api.telegram.org/bot${botToken}/getUpdates?limit=100`);
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.description || 'API error');
+      const userMap = new Map<string, { id: string; name: string; username?: string }>();
+      for (const update of (data.result || [])) {
+        const from = update.message?.from || update.edited_message?.from || update.callback_query?.from;
+        if (from && !from.is_bot) {
+          const uid = String(from.id);
+          if (!userMap.has(uid)) {
+            userMap.set(uid, {
+              id: uid,
+              name: [from.first_name, from.last_name].filter(Boolean).join(' '),
+              username: from.username,
+            });
+          }
+        }
+      }
+      const discoveredList = Array.from(userMap.values());
+      setDiscovered(discoveredList);
+      if (discoveredList.length === 0) {
+        alert('No users found. Make sure someone has sent a message to this bot first (e.g. /start).');
+      } else {
+        // Auto-add all discovered users to the allowlist
+        const newIds = discoveredList.map(u => u.id).filter(id => !allowedUsers.includes(id));
+        if (newIds.length > 0) {
+          onUpdate([...allowedUsers, ...newIds]);
+        }
+      }
+    } catch (e) {
+      alert('Failed to fetch users: ' + e);
+    } finally {
+      setFetching(false);
+    }
+  };
+
+  const addUser = (id: string) => {
+    const val = id.trim();
+    if (val && !allowedUsers.includes(val)) {
+      onUpdate([...allowedUsers, val]);
+    }
+  };
+
+  const removeUser = (id: string) => {
+    onUpdate(allowedUsers.filter(u => u !== id));
+  };
+
+  return (
+    <div className="p-3 bg-dark-600 rounded-lg border border-dark-500 space-y-2 mt-3">
+      <div className="flex items-center justify-between">
+        <label className="text-xs text-gray-400 font-semibold">Allowed DM Users (User ID)</label>
+        <button
+          onClick={fetchUsers}
+          disabled={fetching || !botToken}
+          className="btn-secondary text-[10px] py-0.5 px-2 flex items-center gap-1"
+          title="Fetch users who have messaged this bot"
+        >
+          {fetching ? <Loader2 size={10} className="animate-spin" /> : <Users size={10} />}
+          Fetch Users
+        </button>
+      </div>
+
+      {discovered.length > 0 && (
+        <div className="space-y-1 p-2 bg-dark-700 rounded-lg border border-indigo-500/30">
+          <p className="text-[10px] text-indigo-400 font-semibold mb-1">Discovered Users (click + to add)</p>
+          {discovered.map(u => {
+            const alreadyAdded = allowedUsers.includes(u.id);
+            return (
+              <div key={u.id} className="flex items-center justify-between text-xs bg-dark-600 px-2.5 py-1 rounded-lg border border-dark-400">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-gray-200 truncate">{u.name}</span>
+                  {u.username && <span className="text-gray-500 text-[10px]">@{u.username}</span>}
+                  <span className="font-mono text-gray-400 text-[10px]">{u.id}</span>
+                </div>
+                {alreadyAdded ? (
+                  <span className="text-green-400 text-[10px] flex items-center gap-0.5"><Check size={10} /> Added</span>
+                ) : (
+                  <button
+                    onClick={() => addUser(u.id)}
+                    className="text-indigo-400 hover:text-indigo-300 p-0.5"
+                  >
+                    <Plus size={12} />
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <div className="flex gap-2">
+        <input
+          type="text"
+          value={inputVal}
+          onChange={(e) => setInputVal(e.target.value)}
+          placeholder="e.g. 123456789"
+          className="input-base text-xs flex-1"
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              addUser(inputVal);
+              setInputVal('');
+            }
+          }}
+        />
+        <button
+          onClick={() => {
+            addUser(inputVal);
+            setInputVal('');
+          }}
+          className="btn-secondary p-1.5"
+        >
+          <Plus size={14} />
+        </button>
+      </div>
+      <div className="space-y-1 max-h-32 overflow-y-auto">
+        {allowedUsers.map(id => (
+          <div key={id} className="flex items-center justify-between text-xs bg-dark-500 px-2.5 py-1 rounded-lg border border-dark-400">
+            <span className="font-mono text-gray-300">{id}</span>
+            <button
+              onClick={() => removeUser(id)}
+              className="text-gray-500 hover:text-red-400"
+            >
+              <Trash2 size={12} />
+            </button>
+          </div>
+        ))}
+        {allowedUsers.length === 0 && (
+          <p className="text-[10px] text-gray-500 italic text-center py-1">
+            {placeholderText}
+          </p>
+        )}
+      </div>
+      <p className="text-[10px] text-gray-500">Saved per-account as <code className="px-1 py-0.5 bg-dark-500 rounded">allowFrom</code>. Inherited from primary bot if empty.</p>
+    </div>
+  );
+};
 
 interface FeishuPluginStatus {
   installed: boolean;
@@ -266,7 +424,6 @@ export function Channels() {
   const [allowFromUsers, setAllowFromUsers] = useState<string[]>([]);     // allowFrom (DM user IDs)
   const [groupAllowFromUsers, setGroupAllowFromUsers] = useState<string[]>([]); // groupAllowFrom (group sender IDs)
   const [newGroupInput, setNewGroupInput] = useState('');
-  const [newAllowFromInput, setNewAllowFromInput] = useState('');
   const [newGroupAllowFromInput, setNewGroupAllowFromInput] = useState('');
 
   // Feishu plugin status
@@ -526,6 +683,7 @@ export function Channels() {
   const handleSaveAccount = async (account: TelegramAccountInfo) => {
     setSavingAccount(true);
     try {
+      console.log('[Channels] Saving telegram account:', account.id, 'allow_from:', account.allow_from, 'dm_policy:', account.dm_policy);
       await invoke('save_telegram_account', { account });
       await fetchTelegramAccounts();
     } catch (e) {
@@ -599,6 +757,16 @@ export function Channels() {
           config,
         },
       });
+
+      // In Telegram multi-account mode, also save all per-account data (including allow_from)
+      if (channel.channel_type === 'telegram' && telegramAccounts.length > 0) {
+        console.log('[Channels] Auto-saving all telegram accounts with Save Configuration...');
+        for (const acct of telegramAccounts) {
+          console.log('[Channels] Saving account:', acct.id, 'allow_from:', acct.allow_from);
+          await invoke('save_telegram_account', { account: acct });
+        }
+        await fetchTelegramAccounts();
+      }
 
       // Refresh list
       await fetchChannels();
@@ -1040,61 +1208,12 @@ export function Channels() {
 
                         {/* DM allowFrom: shown when dmPolicy is 'pairing' or 'allowlist' */}
                         {field.key === 'dmPolicy' && (configForm[field.key] === 'pairing' || configForm[field.key] === 'allowlist') && (
-                          <div className="mt-3 p-4 bg-dark-600 rounded-xl border border-dark-500">
-                            <label className="block text-sm text-gray-400 mb-2">Allowed DM Users (User ID)</label>
-                            <div className="flex gap-2 mb-2">
-                              <input
-                                type="text"
-                                value={newAllowFromInput}
-                                onChange={(e) => setNewAllowFromInput(e.target.value)}
-                                placeholder="e.g. 123456789"
-                                className="input-base text-sm"
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter') {
-                                    e.preventDefault();
-                                    if (newAllowFromInput && !allowFromUsers.includes(newAllowFromInput)) {
-                                      setAllowFromUsers([...allowFromUsers, newAllowFromInput]);
-                                      setNewAllowFromInput('');
-                                    }
-                                  }
-                                }}
-                              />
-                              <button
-                                onClick={() => {
-                                  if (newAllowFromInput && !allowFromUsers.includes(newAllowFromInput)) {
-                                    setAllowFromUsers([...allowFromUsers, newAllowFromInput]);
-                                    setNewAllowFromInput('');
-                                  }
-                                }}
-                                className="btn-secondary p-2"
-                              >
-                                <Plus size={16} />
-                              </button>
-                            </div>
-                            <div className="space-y-1 max-h-40 overflow-y-auto">
-                              {allowFromUsers.map(id => (
-                                <div key={id} className="flex items-center justify-between text-sm bg-dark-500 px-3 py-1.5 rounded-lg border border-dark-400">
-                                  <span className="font-mono text-gray-300">{id}</span>
-                                  <button
-                                    onClick={() => setAllowFromUsers(allowFromUsers.filter(u => u !== id))}
-                                    className="text-gray-500 hover:text-red-400"
-                                  >
-                                    <Trash2 size={14} />
-                                  </button>
-                                </div>
-                              ))}
-                              {allowFromUsers.length === 0 && (
-                                <div className="text-xs text-gray-500 text-center py-2 italic">
-                                  {configForm[field.key] === 'pairing'
-                                    ? 'Users will be added automatically via pairing flow.'
-                                    : 'No users allowed. Add user IDs above.'}
-                                </div>
-                              )}
-                            </div>
-                            <p className="text-xs text-gray-500 mt-2">
-                              Saved as <code className="px-1 py-0.5 bg-dark-500 rounded">channels.telegram.allowFrom</code>. Numeric Telegram user IDs.
-                            </p>
-                          </div>
+                          <DmAllowListEditor
+                            allowedUsers={allowFromUsers}
+                            onUpdate={setAllowFromUsers}
+                            botToken={configForm['botToken'] as string}
+                            placeholderText={configForm[field.key] === 'pairing' ? 'Users added via pairing flow. You can also add manually.' : 'No users allowed. Add user IDs above.'}
+                          />
                         )}
                       </div>
                     ))}
@@ -1300,6 +1419,30 @@ export function Channels() {
                                           </button>
                                         </div>
 
+                                        {/* Suggestions from primary/default bot */}
+                                        {(() => {
+                                          const primaryAcct = telegramAccounts.find(a => a.primary) || telegramAccounts.find(a => a.id === 'default');
+                                          if (!primaryAcct || primaryAcct.id === acct.id) return null;
+                                          const primaryGroups = primaryAcct.groups ? Object.keys(primaryAcct.groups as Record<string, unknown>) : [];
+                                          const suggestedGroups = primaryGroups.filter(gid => !(gid in groups));
+                                          if (suggestedGroups.length === 0) return null;
+                                          return (
+                                            <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                                              <span className="text-[10px] text-gray-500">From {primaryAcct.id}:</span>
+                                              {suggestedGroups.map(gid => (
+                                                <button
+                                                  key={gid}
+                                                  onClick={() => updateGroups({ ...groups, [gid]: { enabled: true, requireMention: true } })}
+                                                  className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full border border-blue-500/30 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 transition-colors"
+                                                  title={`Add group ${gid} from ${primaryAcct.id} bot`}
+                                                >
+                                                  <Plus size={10} />{gid}
+                                                </button>
+                                              ))}
+                                            </div>
+                                          );
+                                        })()}
+
                                         {Object.entries(groups).map(([gid, gsettings]) => (
                                           <div key={gid} className="bg-dark-700 rounded-lg border border-dark-500 overflow-hidden">
                                             <div className="flex items-center justify-between px-2 py-1.5">
@@ -1352,87 +1495,47 @@ export function Channels() {
                                   })()}
 
                                   {/* Per-account DM Allowed Users */}
-                                  {(acct.dm_policy === 'pairing' || acct.dm_policy === 'allowlist') && (() => {
-                                    const dmUsers = acct.allow_from || [];
-                                    const updateDmUsers = (newList: string[]) => {
-                                      const updated = telegramAccounts.map(a => a.id === acct.id ? { ...a, allow_from: newList } : a);
-                                      setTelegramAccounts(updated);
-                                    };
-                                    return (
-                                      <div className="p-3 bg-dark-600 rounded-lg border border-dark-500 space-y-2">
-                                        <label className="text-xs text-gray-400 font-semibold">Allowed DM Users (User ID)</label>
-                                        <div className="flex gap-2">
-                                          <input
-                                            type="text"
-                                            placeholder="e.g. 123456789"
-                                            className="input-base text-xs flex-1"
-                                            id={`dm-user-${acct.id}`}
-                                            onKeyDown={(e) => {
-                                              if (e.key === 'Enter') {
-                                                const val = (e.target as HTMLInputElement).value.trim();
-                                                if (val && !dmUsers.includes(val)) {
-                                                  updateDmUsers([...dmUsers, val]);
-                                                  (e.target as HTMLInputElement).value = '';
-                                                }
-                                              }
-                                            }}
-                                          />
-                                          <button
-                                            onClick={() => {
-                                              const input = document.getElementById(`dm-user-${acct.id}`) as HTMLInputElement;
-                                              const val = input?.value.trim();
-                                              if (val && !dmUsers.includes(val)) {
-                                                updateDmUsers([...dmUsers, val]);
-                                                input.value = '';
-                                              }
-                                            }}
-                                            className="btn-secondary p-1.5"
-                                          >
-                                            <Plus size={14} />
-                                          </button>
-                                        </div>
-                                        <div className="space-y-1 max-h-32 overflow-y-auto">
-                                          {dmUsers.map(id => (
-                                            <div key={id} className="flex items-center justify-between text-xs bg-dark-500 px-2.5 py-1 rounded-lg border border-dark-400">
-                                              <span className="font-mono text-gray-300">{id}</span>
+                                  {/* Per-account DM Allowed Users */}
+                                  {(!acct.dm_policy || acct.dm_policy === 'pairing' || acct.dm_policy === 'allowlist') && (
+                                    <>
+                                      <DmAllowListEditor
+                                        allowedUsers={acct.allow_from || []}
+                                        onUpdate={(newList) => {
+                                          const updated = telegramAccounts.map(a => a.id === acct.id ? { ...a, allow_from: newList } : a);
+                                          setTelegramAccounts(updated);
+                                        }}
+                                        botToken={acct.bot_token}
+                                        placeholderText={acct.dm_policy === 'pairing' ? 'Users added via pairing flow. You can also add manually.' : 'No users allowed. Add user IDs above.'}
+                                      />
+                                      {/* Suggestions from primary/default bot */}
+                                      {(() => {
+                                        const primaryAcct = telegramAccounts.find(a => a.primary) || telegramAccounts.find(a => a.id === 'default');
+                                        if (!primaryAcct || primaryAcct.id === acct.id) return null;
+                                        const primaryUsers = primaryAcct.allow_from || [];
+                                        const currentUsers = acct.allow_from || [];
+                                        const suggestedUsers = primaryUsers.filter(uid => !currentUsers.includes(uid));
+                                        if (suggestedUsers.length === 0) return null;
+                                        return (
+                                          <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                                            <span className="text-[10px] text-gray-500">From {primaryAcct.id}:</span>
+                                            {suggestedUsers.map(uid => (
                                               <button
-                                                onClick={() => updateDmUsers(dmUsers.filter(u => u !== id))}
-                                                className="text-gray-500 hover:text-red-400"
+                                                key={uid}
+                                                onClick={() => {
+                                                  const updated = telegramAccounts.map(a => a.id === acct.id ? { ...a, allow_from: [...currentUsers, uid] } : a);
+                                                  setTelegramAccounts(updated);
+                                                }}
+                                                className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full border border-blue-500/30 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 transition-colors"
+                                                title={`Add user ${uid} from ${primaryAcct.id} bot`}
                                               >
-                                                <Trash2 size={12} />
+                                                <Plus size={10} />{uid}
                                               </button>
-                                            </div>
-                                          ))}
-                                          {dmUsers.length === 0 && (
-                                            <p className="text-[10px] text-gray-500 italic text-center py-1">
-                                              {acct.dm_policy === 'pairing' ? 'Users added via pairing flow. You can also add manually.' : 'No users allowed. Add user IDs above.'}
-                                            </p>
-                                          )}
-                                        </div>
-                                        <p className="text-[10px] text-gray-500">Saved per-account as <code className="px-1 py-0.5 bg-dark-500 rounded">allowFrom</code>. Inherited from primary bot if empty.</p>
-                                      </div>
-                                    );
-                                  })()}
-
-                                  <div className="flex items-center gap-2 mt-2 pt-2 border-t border-dark-400">
-                                    <input
-                                      type="checkbox"
-                                      id={`primary-${acct.id}`}
-                                      checked={acct.primary || false}
-                                      onChange={(e) => {
-                                        const updated = telegramAccounts.map(a => {
-                                          if (a.id === acct.id) return { ...a, primary: e.target.checked };
-                                          if (e.target.checked) return { ...a, primary: false }; // Unset others
-                                          return a;
-                                        });
-                                        setTelegramAccounts(updated);
-                                      }}
-                                      className="w-3.5 h-3.5 rounded bg-dark-600 border-dark-500 text-claw-500 focus:ring-claw-500/50"
-                                    />
-                                    <label htmlFor={`primary-${acct.id}`} className="text-xs text-gray-300 select-none cursor-pointer">
-                                      Primary Account (Use root workspace)
-                                    </label>
-                                  </div>
+                                            ))}
+                                          </div>
+                                        );
+                                      })()}
+                                    </>
+                                  )}
 
                                   <button
                                     onClick={() => handleSaveAccount(acct)}

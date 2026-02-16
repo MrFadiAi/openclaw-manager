@@ -369,8 +369,9 @@ pub fn run_openclaw(args: &[&str]) -> Result<String, String> {
         let mut cmd_args = vec!["/c", &openclaw_path];
         cmd_args.extend(args);
         let mut cmd = Command::new("cmd");
+        let gw_token = get_gateway_token_from_config();
         cmd.args(&cmd_args)
-            .env("OPENCLAW_GATEWAY_TOKEN", DEFAULT_GATEWAY_TOKEN)
+            .env("OPENCLAW_GATEWAY_TOKEN", &gw_token)
             .env("PATH", &extended_path);
         
         #[cfg(windows)]
@@ -379,8 +380,9 @@ pub fn run_openclaw(args: &[&str]) -> Result<String, String> {
         cmd.output()
     } else {
         let mut cmd = Command::new(&openclaw_path);
+        let gw_token = get_gateway_token_from_config();
         cmd.args(args)
-            .env("OPENCLAW_GATEWAY_TOKEN", DEFAULT_GATEWAY_TOKEN)
+            .env("OPENCLAW_GATEWAY_TOKEN", &gw_token)
             .env("PATH", &extended_path);
         
         #[cfg(windows)]
@@ -409,8 +411,97 @@ pub fn run_openclaw(args: &[&str]) -> Result<String, String> {
     }
 }
 
-/// Default Gateway Token
+/// Default Gateway Token (fallback only)
 pub const DEFAULT_GATEWAY_TOKEN: &str = "openclaw-manager-local-token";
+
+/// Read the actual gateway auth token from openclaw.json config.
+/// If no token exists (fresh install), generates one and saves it to config.
+/// Falls back to DEFAULT_GATEWAY_TOKEN only if config is completely unreadable.
+fn get_gateway_token_from_config() -> String {
+    let config_path = platform::get_config_file_path();
+
+    // Try to read existing config
+    let mut config = if let Ok(content) = file::read_file(&config_path) {
+        let content = content.strip_prefix('\u{FEFF}').unwrap_or(&content);
+        match serde_json::from_str::<serde_json::Value>(content) {
+            Ok(c) => c,
+            Err(_) => serde_json::json!({}),
+        }
+    } else {
+        serde_json::json!({})
+    };
+
+    // Check if token already exists
+    let existing_token = config
+        .pointer("/gateway/auth/token")
+        .and_then(|v| v.as_str())
+        .filter(|t| !t.is_empty())
+        .map(|t| t.to_string());
+
+    if let Some(token) = existing_token {
+        // Ensure controlUi.allowInsecureAuth is set (may be missing on older configs)
+        let needs_update = config
+            .pointer("/gateway/controlUi/allowInsecureAuth")
+            .and_then(|v| v.as_bool())
+            != Some(true);
+        if needs_update {
+            info!("[Shell] Setting gateway.controlUi.allowInsecureAuth = true");
+            if config["gateway"].get("controlUi").is_none() {
+                config["gateway"]["controlUi"] = serde_json::json!({});
+            }
+            config["gateway"]["controlUi"]["allowInsecureAuth"] = serde_json::json!(true);
+            if let Ok(content) = serde_json::to_string_pretty(&config) {
+                let _ = file::write_file(&config_path, &content);
+            }
+        }
+        info!("[Shell] Using gateway token from config");
+        return token;
+    }
+
+    // No token found — generate one and save it to config
+    info!("[Shell] No gateway token found, generating new token...");
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos();
+    let random_part: u64 = (timestamp as u64) ^ 0x5DEECE66Du64;
+    let new_token = format!(
+        "{:016x}{:016x}{:016x}",
+        random_part,
+        random_part.wrapping_mul(0x5DEECE66Du64),
+        timestamp as u64
+    );
+
+    // Ensure gateway.auth path exists in config
+    if config.get("gateway").is_none() {
+        config["gateway"] = serde_json::json!({});
+    }
+    if config["gateway"].get("auth").is_none() {
+        config["gateway"]["auth"] = serde_json::json!({});
+    }
+    config["gateway"]["auth"]["token"] = serde_json::json!(&new_token);
+    config["gateway"]["auth"]["mode"] = serde_json::json!("token");
+    if config["gateway"].get("mode").is_none() {
+        config["gateway"]["mode"] = serde_json::json!("local");
+    }
+    // Allow Control UI to connect with token-only auth (skip device pairing for local manager)
+    if config["gateway"].get("controlUi").is_none() {
+        config["gateway"]["controlUi"] = serde_json::json!({});
+    }
+    config["gateway"]["controlUi"]["allowInsecureAuth"] = serde_json::json!(true);
+
+    // Save config
+    if let Ok(content) = serde_json::to_string_pretty(&config) {
+        if let Err(e) = file::write_file(&config_path, &content) {
+            warn!("[Shell] Failed to save generated token to config: {}", e);
+            return DEFAULT_GATEWAY_TOKEN.to_string();
+        }
+    }
+
+    info!("[Shell] Generated and saved new gateway token: {}...", &new_token[..8]);
+    new_token
+}
 
 /// Read all environment variables from ~/.openclaw/env file
 /// Consistent with shell script `source ~/.openclaw/env` behavior
@@ -487,9 +578,11 @@ pub fn spawn_openclaw_gateway() -> io::Result<()> {
         cmd.env(key, value);
     }
     
-    // Set PATH and gateway token
+    // Set PATH and gateway token (read from config to avoid mismatch)
+    let gateway_token = get_gateway_token_from_config();
     cmd.env("PATH", &extended_path);
-    cmd.env("OPENCLAW_GATEWAY_TOKEN", DEFAULT_GATEWAY_TOKEN);
+    cmd.env("OPENCLAW_GATEWAY_TOKEN", &gateway_token);
+    info!("[Shell] Gateway token: {}...", &gateway_token[..8.min(gateway_token.len())]);
     
     // Windows: hide console window
     #[cfg(windows)]

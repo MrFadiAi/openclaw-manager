@@ -678,6 +678,10 @@ pub async fn init_openclaw_config() -> Result<InstallResult, String> {
     info!("[Init Config] Executing: openclaw config set gateway.mode local");
     let result = shell::run_openclaw(&["config", "set", "gateway.mode", "local"]);
 
+    // Also set controlUi.allowInsecureAuth for local manager (skip device pairing)
+    info!("[Init Config] Executing: openclaw config set gateway.controlUi.allowInsecureAuth true");
+    let _ = shell::run_openclaw(&["config", "set", "gateway.controlUi.allowInsecureAuth", "true"]);
+
     match result {
         Ok(output) => {
             info!("[Init Config] Configuration initialized successfully");
@@ -933,6 +937,22 @@ pub async fn uninstall_openclaw() -> Result<InstallResult, String> {
             uninstall_openclaw_unix().await
         },
     };
+
+    // After npm uninstall, delete the .openclaw config directory
+    if let Some(home) = dirs::home_dir() {
+        let openclaw_dir = home.join(".openclaw");
+        if openclaw_dir.exists() {
+            info!("[Uninstall OpenClaw] Deleting .openclaw directory: {:?}", openclaw_dir);
+            match std::fs::remove_dir_all(&openclaw_dir) {
+                Ok(_) => info!("[Uninstall OpenClaw] Successfully deleted .openclaw directory"),
+                Err(e) => warn!("[Uninstall OpenClaw] Failed to delete .openclaw directory: {}", e),
+            }
+        } else {
+            info!("[Uninstall OpenClaw] .openclaw directory does not exist, skipping");
+        }
+    } else {
+        warn!("[Uninstall OpenClaw] Could not determine home directory, skipping .openclaw deletion");
+    }
 
     match &result {
         Ok(r) if r.success => info!("[Uninstall OpenClaw] Uninstallation successful"),
