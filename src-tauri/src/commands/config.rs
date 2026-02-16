@@ -2628,7 +2628,12 @@ pub async fn get_agent_system_prompt(agent_id: String, workspace: Option<String>
         .map(|s| s.replace("/", sep)) //normalize separators
         .unwrap_or_else(|| format!("agents{}{}", sep, agent_id)); // fallback
 
-    let dir_config = format!("{}{}{}", base, sep, agent_dir_rel);
+    // If agentDir is already an absolute path, use it directly; otherwise join with base
+    let dir_config = if std::path::Path::new(&agent_dir_rel).is_absolute() {
+        agent_dir_rel
+    } else {
+        format!("{}{}{}", base, sep, agent_dir_rel)
+    };
     
     // Try locations in order of likelihood - prioritizing the CORRECT one first
     let paths = vec![
@@ -2663,7 +2668,12 @@ pub async fn save_agent_system_prompt(agent_id: String, workspace: Option<String
         .map(|s| s.replace("/", sep))
         .unwrap_or_else(|| format!("agents{}{}", sep, agent_id));
 
-    let dir_config = format!("{}{}{}", base, sep, agent_dir_rel);
+    // If agentDir is already an absolute path, use it directly; otherwise join with base
+    let dir_config = if std::path::Path::new(&agent_dir_rel).is_absolute() {
+        agent_dir_rel
+    } else {
+        format!("{}{}{}", base, sep, agent_dir_rel)
+    };
     
     // ONLY save to the correct canonical path
     let path = format!("{}{}SOUL.md", dir_config, sep);
