@@ -64,6 +64,36 @@ pub async fn check_port_in_use(port: u16) -> Result<bool, String> {
     }
 }
 
+#[derive(serde::Serialize)]
+pub struct SecureVersionInfo {
+    pub current_version: String,
+    pub is_secure: bool,
+}
+
+/// Check if current OpenClaw version is secure (>= 2026.1.29)
+#[command]
+pub async fn check_secure_version() -> Result<SecureVersionInfo, String> {
+    info!("[Process Check] Checking OpenClaw version security...");
+    match shell::run_openclaw(&["--version"]) {
+        Ok(version) => {
+            let v = version.trim().to_string();
+            // Basic string comparison assuming YYYY.M.D format
+            let is_secure = v >= "2026.1.29".to_string();
+            
+            info!("[Process Check] Version: {}, Secure: {}", v, is_secure);
+            Ok(SecureVersionInfo {
+                current_version: v,
+                is_secure,
+            })
+        },
+        Err(e) => {
+            debug!("[Process Check] Failed to get version for security check: {}", e);
+            // If we can't get version, assume insecure or handle error
+            Err(e)
+        },
+    }
+}
+
 /// Get Node.js version
 #[command]
 pub async fn get_node_version() -> Result<Option<String>, String> {

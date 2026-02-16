@@ -34,6 +34,7 @@ fn main() {
             // Process management
             process::check_openclaw_installed,
             process::get_openclaw_version,
+            process::check_secure_version,
             process::check_port_in_use,
             // Configuration management
             config::get_config,
