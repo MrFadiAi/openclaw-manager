@@ -30,10 +30,12 @@ Real-time monitoring and full lifecycle management of the OpenClaw service.
 - Live service status (port, PID, memory usage, uptime)
 - **Start / Stop / Restart / Kill All** actions
 - Real-time log viewer with auto-refresh
+- **Web Control UI**: Direct chat interface with your agents (served at `http://localhost:18789`)
 
 **How to Use:**
 - **Start Service:** Click the **Start** button in the dashboard top-right corner.
 - **View Logs:** Check the "Live Logs" card for immediate output or go to the **Logs** tab for history.
+- **Control UI:** Once the service is running, open `http://localhost:18789` to chat with your agents directly.
 - **System Check:** Use the "System Requirements" card to verify your environment health.
 
 ### 🤖 AI Model Configuration

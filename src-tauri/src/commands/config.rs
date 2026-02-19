@@ -1939,7 +1939,8 @@ pub async fn save_telegram_account(account: TelegramAccount) -> Result<String, S
     if account.primary == Some(true) {
         manager_config["primaryBotAccount"] = json!(account.id);
 
-        // --- NEW LOGIC: Configure primary agent workspace ---
+        // --- NEW LOGIC DISABLED: Do NOT auto-create main agent or binding ---
+        /*
         // 1. Ensure "main" agent exists pointing to ~/.openclaw/workspace
         let openclaw_home = platform::get_config_dir();
         // Resolve ~/.openclaw/workspace
@@ -2041,6 +2042,7 @@ pub async fn save_telegram_account(account: TelegramAccount) -> Result<String, S
             }));
         }
         config["bindings"] = json!(bindings);
+        */
         // --- END NEW LOGIC ---
 
     } else {
@@ -2623,7 +2625,13 @@ pub async fn save_agent(agent: AgentInfo) -> Result<String, String> {
     // Update or add the agent
     if let Some(idx) = match_index {
         let existing = &mut list[idx];
+        
         // Merge: only overwrite fields the user explicitly set (non-empty)
+        if let Some(name) = &agent.name {
+            if !name.is_empty() {
+                existing["name"] = json!(name);
+            }
+        }
         if let Some(model) = &agent.model {
             if !model.is_empty() {
                 existing["model"] = json!({ "primary": model });
@@ -2634,6 +2642,14 @@ pub async fn save_agent(agent: AgentInfo) -> Result<String, String> {
                 existing["default"] = json!(true);
             }
         }
+        
+        // Enforce "Main" agent properties
+        if agent.id.eq_ignore_ascii_case("main") {
+            // "Main" should always be default unless user explicitly sets another default (which handles itself)
+            // But to ensure fallback behavior, we mark it.
+            existing["default"] = json!(true);
+        }
+
         if let Some(sub) = &agent.subagents {
             if let Some(allow) = &sub.allow_agents {
                 if !allow.is_empty() {
@@ -2801,19 +2817,29 @@ pub async fn delete_agent(agent_id: String) -> Result<String, String> {
 
     if let Some(agent_dir) = agent_dir_to_delete {
         let path = std::path::Path::new(&agent_dir);
-        if path.exists() {
-            info!("[Agents] Removing agent directory: {}", agent_dir);
-            if let Err(e) = std::fs::remove_dir_all(path) {
-                warn!("[Agents] Failed to remove agent directory {}: {}", agent_dir, e);
+        // Check if this is a nested 'agent' directory (standard structure: .../agents/<id>/agent)
+        // If so, we want to delete the PARENT directory (e.g. .../agents/<id>) to clean up everything including sessions.
+        let path_to_remove = if path.ends_with("agent") {
+            path.parent().unwrap_or(path)
+        } else {
+            path
+        };
+
+        if path_to_remove.exists() {
+            info!("[Agents] Removing agent directory tree: {:?}", path_to_remove);
+            if let Err(e) = std::fs::remove_dir_all(path_to_remove) {
+                warn!("[Agents] Failed to remove agent directory {:?}: {}", path_to_remove, e);
             }
         }
     } else {
         // Fallback: try default location if not specified in config
         let openclaw_home = platform::get_config_dir();
-        let default_agent_dir = std::path::Path::new(&openclaw_home).join("agents").join(&agent_id);
-        if default_agent_dir.exists() {
-             info!("[Agents] Removing default agent directory: {:?}", default_agent_dir);
-             if let Err(e) = std::fs::remove_dir_all(&default_agent_dir) {
+        // Default structure is now ~/.openclaw/agents/<id> (which contains agent/, sessions/, etc.)
+        let default_agent_root = std::path::Path::new(&openclaw_home).join("agents").join(&agent_id);
+        
+        if default_agent_root.exists() {
+             info!("[Agents] Removing default agent directory tree: {:?}", default_agent_root);
+             if let Err(e) = std::fs::remove_dir_all(&default_agent_root) {
                 warn!("[Agents] Failed to remove default agent directory: {}", e);
             }
         }

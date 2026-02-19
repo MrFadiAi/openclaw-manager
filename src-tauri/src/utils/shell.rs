@@ -364,13 +364,11 @@ pub fn run_openclaw(args: &[&str]) -> Result<String, String> {
     let extended_path = get_extended_path();
     debug!("[Shell] Extended PATH: {}", extended_path);
     
-    let output = if openclaw_path.ends_with(".cmd") {
-        // Windows: .cmd files need to be executed via cmd /c
-        let mut cmd_args = vec!["/c", &openclaw_path];
-        cmd_args.extend(args);
-        let mut cmd = Command::new("cmd");
+    let output = if platform::is_windows() && openclaw_path.ends_with(".cmd") {
+        // Windows: .cmd files can be executed directly
+        let mut cmd = Command::new(&openclaw_path);
         let gw_token = get_gateway_token_from_config();
-        cmd.args(&cmd_args)
+        cmd.args(args)
             .env("OPENCLAW_GATEWAY_TOKEN", &gw_token)
             .env("PATH", &extended_path);
         
@@ -559,15 +557,15 @@ pub fn spawn_openclaw_gateway() -> io::Result<()> {
     let extended_path = get_extended_path();
     info!("[Shell] Extended PATH: {}", extended_path);
     
-    // On Windows, .cmd files need to be executed via cmd /c
+    // On Windows, .cmd files can be executed directly by Command::new
     // Set environment variable OPENCLAW_GATEWAY_TOKEN so all subcommands can use it automatically
-    let mut cmd = if openclaw_path.ends_with(".cmd") {
-        info!("[Shell] Windows mode: executing via cmd /c");
-        let mut c = Command::new("cmd");
-        c.args(["/c", &openclaw_path, "gateway", "--port", "18789"]);
+    let mut cmd = if platform::is_windows() && openclaw_path.ends_with(".cmd") {
+        info!("[Shell] Windows mode: executing .cmd directly");
+        let mut c = Command::new(&openclaw_path);
+        c.args(["gateway", "--port", "18789"]);
         c
     } else {
-        info!("[Shell] Unix mode: executing directly");
+        info!("[Shell] Unix/Direct mode: executing directly");
         let mut c = Command::new(&openclaw_path);
         c.args(["gateway", "--port", "18789"]);
         c

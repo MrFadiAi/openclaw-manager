@@ -742,27 +742,7 @@ export function Agents() {
                                         placeholder="e.g. coder"
                                     />
                                 </div>
-                                <div className="flex items-center gap-2 pt-1">
-                                    <input
-                                        type="checkbox"
-                                        id="defaultAgent"
-                                        checked={agentForm.default || false}
-                                        onChange={e => {
-                                            const isDefault = e.target.checked;
-                                            const id = agentForm.id || 'agent';
-                                            const base = openclawHomeDir ? openclawHomeDir.replace(/\\/g, '/') : '';
-                                            setAgentForm({
-                                                ...agentForm,
-                                                default: isDefault || null,
-                                                workspace: base ? (isDefault ? `${base}/workspace` : `${base}/workspace-${id}`) : agentForm.workspace,
-                                                agent_dir: base ? `${base}/agents/${id}/agent` : agentForm.agent_dir,
-                                            });
-                                        }}
-                                        className="w-4 h-4 rounded bg-dark-600 border-dark-500 text-claw-500 focus:ring-claw-500/50"
-                                    />
-                                    <label htmlFor="defaultAgent" className="text-sm text-gray-300 select-none">Default Agent</label>
-                                    <span className="text-xs text-gray-500 ml-1">(uses main workspace)</span>
-                                </div>
+                                {/* Default Agent checkbox removed - Main agent is always default */}\n
                                 <div>
                                     <label className="block text-sm text-gray-400 mb-1">Workspace Path</label>
                                     <input
@@ -772,7 +752,7 @@ export function Agents() {
                                         className="input-base"
                                         placeholder={openclawHomeDir ? (agentForm.default ? `${openclawHomeDir.replace(/\\/g, '/')}/workspace` : `${openclawHomeDir.replace(/\\/g, '/')}/workspace-${agentForm.id || 'agent'}`) : '/path/to/workspace'}
                                     />
-                                    <p className="text-xs text-gray-500 mt-1">Default: <code className="text-gray-400">{openclawHomeDir ? (agentForm.default ? `${openclawHomeDir.replace(/\\/g, '/')}/workspace` : `${openclawHomeDir.replace(/\\/g, '/')}/workspace-${agentForm.id || '{id}'}`) : '~/.openclaw/workspace-{id}'}</code></p>
+                                    <p className="text-xs text-gray-500 mt-1">Default: <code className="text-gray-400">{openclawHomeDir ? `${openclawHomeDir.replace(/\\/g, '/')}/workspace-${agentForm.id || '{id}'}` : '~/.openclaw/workspace-{id}'}</code></p>
                                 </div>
                                 <div>
                                     <label className="block text-sm text-gray-400 mb-1">Agent Directory</label>
@@ -1038,19 +1018,9 @@ export function Agents() {
                                                 className="input-base"
                                                 placeholder="e.g. coder"
                                             />
-                                            <p className="text-xs text-gray-500 mt-1">Workspace: <code className="text-gray-400">{wizardForm.isDefault ? 'workspace/' : `workspace-${wizardForm.agentId || '{id}'}/`}</code></p>
+                                            <p className="text-xs text-gray-500 mt-1">Workspace: <code className="text-gray-400">{`workspace-${wizardForm.agentId || '{id}'}/`}</code></p>
                                         </div>
-                                        <div className="flex items-center gap-2">
-                                            <input
-                                                type="checkbox"
-                                                id="wizardDefaultAgent"
-                                                checked={wizardForm.isDefault}
-                                                onChange={e => setWizardForm({ ...wizardForm, isDefault: e.target.checked })}
-                                                className="w-4 h-4 rounded bg-dark-600 border-dark-500 text-claw-500 focus:ring-claw-500/50"
-                                            />
-                                            <label htmlFor="wizardDefaultAgent" className="text-sm text-gray-300 select-none">Default Agent</label>
-                                            <span className="text-xs text-gray-500 ml-1">(uses main workspace)</span>
-                                        </div>
+                                        {/* Default Agent checkbox removed */}\n
                                         <div>
                                             <label className="block text-sm text-gray-400 mb-1">Model Override (Optional)</label>
                                             <input
