@@ -20,6 +20,8 @@ pub struct EnvironmentStatus {
     pub openclaw_installed: bool,
     /// OpenClaw version
     pub openclaw_version: Option<String>,
+    /// Whether gateway service is installed
+    pub gateway_service_installed: bool,
     /// Whether config directory exists
     pub config_dir_exists: bool,
     /// Whether everything is ready
@@ -75,12 +77,22 @@ pub async fn check_environment() -> Result<EnvironmentStatus, String> {
     info!("[Environment Check] OpenClaw: installed={}, version={:?}",
         openclaw_installed, openclaw_version);
 
+    // Check Gateway Service (only if OpenClaw is installed)
+    let gateway_service_installed = if openclaw_installed {
+        info!("[Environment Check] Checking Gateway Service...");
+        let installed = check_gateway_installed();
+        info!("[Environment Check] Gateway Service: installed={}", installed);
+        installed
+    } else {
+        false
+    };
+
     // Check config directory
     let config_dir = platform::get_config_dir();
     let config_dir_exists = std::path::Path::new(&config_dir).exists();
     info!("[Environment Check] Config directory: {}, exists={}", config_dir, config_dir_exists);
 
-    let ready = node_installed && node_version_ok && openclaw_installed;
+    let ready = node_installed && node_version_ok && openclaw_installed && gateway_service_installed;
     info!("[Environment Check] Environment ready status: ready={}", ready);
     
     Ok(EnvironmentStatus {
@@ -91,6 +103,7 @@ pub async fn check_environment() -> Result<EnvironmentStatus, String> {
         git_version,
         openclaw_installed,
         openclaw_version,
+        gateway_service_installed,
         config_dir_exists,
         ready,
         os,
@@ -319,6 +332,188 @@ fn check_node_version_requirement(version: &Option<String>) -> bool {
     } else {
         false
     }
+}
+
+/// Check if gateway service is installed
+fn check_gateway_installed() -> bool {
+    match shell::run_openclaw(&["gateway", "status"]) {
+        Ok(output) => {
+            let lower = output.to_lowercase();
+            // If output contains "not installed" or "not found", it's not installed
+            if lower.contains("not installed") || lower.contains("not found") {
+                return false;
+            }
+            // If the command succeeded, consider it installed
+            true
+        }
+        Err(e) => {
+            let lower = e.to_lowercase();
+            // Some versions return error when not installed
+            if lower.contains("not installed") || lower.contains("not found") {
+                return false;
+            }
+            // If the command itself failed (e.g. openclaw not found), not installed
+            debug!("[Environment Check] Gateway status check failed: {}", e);
+            false
+        }
+    }
+}
+
+/// Install gateway service (opens elevated terminal)
+#[command]
+pub async fn install_gateway_service() -> Result<String, String> {
+    info!("[Gateway Install] Starting gateway service installation...");
+    let os = platform::get_os();
+    info!("[Gateway Install] Detected operating system: {}", os);
+
+    match os.as_str() {
+        "windows" => install_gateway_windows().await,
+        "macos" => install_gateway_macos().await,
+        "linux" => install_gateway_linux().await,
+        _ => Err(format!("Unsupported operating system: {}", os)),
+    }
+}
+
+/// Install gateway service on Windows (elevated PowerShell)
+async fn install_gateway_windows() -> Result<String, String> {
+    info!("[Gateway Install] Opening elevated PowerShell for gateway install...");
+
+    // Find openclaw path to use in the script
+    let openclaw_path = shell::get_openclaw_path().unwrap_or_else(|| "openclaw".to_string());
+    let escaped_path = openclaw_path.replace('\\', "\\\\");
+
+    let script = format!(r#"
+Start-Process powershell -ArgumentList '-NoExit', '-Command', '
+Write-Host "========================================" -ForegroundColor Cyan
+Write-Host "  OpenClaw Gateway Service Installer" -ForegroundColor White
+Write-Host "========================================" -ForegroundColor Cyan
+Write-Host ""
+Write-Host "Installing OpenClaw Gateway as a system service..." -ForegroundColor Yellow
+Write-Host ""
+
+try {{
+    & "{}" gateway install
+    Write-Host ""
+    Write-Host "Gateway service installed successfully!" -ForegroundColor Green
+}} catch {{
+    Write-Host "Installation failed: $_" -ForegroundColor Red
+}}
+
+Write-Host ""
+Write-Host "You can close this window and click Refresh in OpenClaw Manager." -ForegroundColor Cyan
+Write-Host ""
+Read-Host "Press Enter to close this window"
+' -Verb RunAs
+"#, escaped_path);
+
+    match shell::run_powershell_output(&script) {
+        Ok(_) => {
+            info!("[Gateway Install] Elevated terminal launched successfully");
+            Ok("Gateway install terminal opened with administrator privileges. Please complete the installation and click Refresh.".to_string())
+        }
+        Err(e) => {
+            warn!("[Gateway Install] Failed to launch elevated terminal: {}", e);
+            Err(format!("Failed to open administrator terminal: {}. Please open PowerShell as Administrator and run: openclaw gateway install", e))
+        }
+    }
+}
+
+/// Install gateway service on macOS (Terminal with sudo)
+async fn install_gateway_macos() -> Result<String, String> {
+    info!("[Gateway Install] Opening terminal for gateway install on macOS...");
+
+    let script_content = r#"#!/bin/bash
+clear
+echo "========================================"
+echo "  OpenClaw Gateway Service Installer"
+echo "========================================"
+echo ""
+echo "Installing OpenClaw Gateway as a system service..."
+echo "You may be prompted for your password."
+echo ""
+
+sudo openclaw gateway install
+
+echo ""
+if [ $? -eq 0 ]; then
+    echo "✅ Gateway service installed successfully!"
+else
+    echo "❌ Installation failed. Please check the error above."
+fi
+echo ""
+echo "You can close this window and click Refresh in OpenClaw Manager."
+read -p "Press Enter to close this window..."
+"#;
+
+    let script_path = "/tmp/openclaw_gateway_install.command";
+    std::fs::write(script_path, script_content)
+        .map_err(|e| format!("Failed to create script: {}", e))?;
+
+    std::process::Command::new("chmod")
+        .args(["+x", script_path])
+        .output()
+        .map_err(|e| format!("Failed to set permissions: {}", e))?;
+
+    std::process::Command::new("open")
+        .arg(script_path)
+        .spawn()
+        .map_err(|e| format!("Failed to launch terminal: {}", e))?;
+
+    info!("[Gateway Install] Terminal launched successfully on macOS");
+    Ok("Gateway install terminal opened. Please enter your password when prompted and click Refresh after completion.".to_string())
+}
+
+/// Install gateway service on Linux (terminal with sudo)
+async fn install_gateway_linux() -> Result<String, String> {
+    info!("[Gateway Install] Opening terminal for gateway install on Linux...");
+
+    let script_content = r#"#!/bin/bash
+clear
+echo "========================================"
+echo "  OpenClaw Gateway Service Installer"
+echo "========================================"
+echo ""
+echo "Installing OpenClaw Gateway as a system service..."
+echo "You may be prompted for your password."
+echo ""
+
+sudo openclaw gateway install
+
+echo ""
+if [ $? -eq 0 ]; then
+    echo "✅ Gateway service installed successfully!"
+else
+    echo "❌ Installation failed. Please check the error above."
+fi
+echo ""
+echo "You can close this window and click Refresh in OpenClaw Manager."
+read -p "Press Enter to close this window..."
+"#;
+
+    let script_path = "/tmp/openclaw_gateway_install.sh";
+    std::fs::write(script_path, script_content)
+        .map_err(|e| format!("Failed to create script: {}", e))?;
+
+    std::process::Command::new("chmod")
+        .args(["+x", script_path])
+        .output()
+        .map_err(|e| format!("Failed to set permissions: {}", e))?;
+
+    // Try different terminal emulators
+    let terminals = ["gnome-terminal", "xfce4-terminal", "konsole", "xterm"];
+    for term in terminals {
+        if std::process::Command::new(term)
+            .args(["--", script_path])
+            .spawn()
+            .is_ok()
+        {
+            info!("[Gateway Install] Terminal '{}' launched successfully on Linux", term);
+            return Ok("Gateway install terminal opened. Please enter your password when prompted and click Refresh after completion.".to_string());
+        }
+    }
+
+    warn!("[Gateway Install] No terminal emulator found on Linux");
+    Err("Unable to launch terminal. Please open a terminal and run: sudo openclaw gateway install".to_string())
 }
 
 /// Install Node.js

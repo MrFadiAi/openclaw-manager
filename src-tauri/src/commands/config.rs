@@ -2488,89 +2488,76 @@ pub async fn save_agent(agent: AgentInfo) -> Result<String, String> {
         Vec::new()
     };
 
-    // Ensure agent directory exists and has basic files (SOUL.md)
-    // Resolving workspace path: use provided workspace OR openclaw_home/agent.agent_dir OR openclaw_home/agents/agent.id
-    let openclaw_home = platform::get_config_dir();
-    let workspace_path = if let Some(ws) = &agent.workspace {
-        ws.clone()
-    } else if let Some(adir) = &agent.agent_dir {
-        // agent_dir might be relative to openclaw_home
-        if std::path::Path::new(adir).is_absolute() {
-            adir.clone()
+    // For NEW agents: use `openclaw agents add <id> --workspace <dir>` to create proper directory structure
+    // The --workspace flag is required to make the CLI non-interactive
+    let is_new_agent = !list.iter().any(|a| a.get("id").and_then(|v| v.as_str()) == Some(&agent.id));
+    
+    if is_new_agent {
+        let openclaw_home = platform::get_config_dir();
+        let workspace_dir = if let Some(ws) = &agent.workspace {
+            ws.clone()
+        } else if agent.default == Some(true) {
+            std::path::Path::new(&openclaw_home).join("workspace").to_string_lossy().to_string()
         } else {
-            let path = std::path::Path::new(&openclaw_home).join(adir);
-            path.to_string_lossy().to_string()
-        }
-    } else {
-        // Default: ~/.openclaw/workspace for main, ~/.openclaw/workspace-{id} for others
-        let path = if agent.id == "main" {
-            std::path::Path::new(&openclaw_home).join("workspace")
-        } else {
-            std::path::Path::new(&openclaw_home).join(format!("workspace-{}", agent.id))
+            std::path::Path::new(&openclaw_home).join(format!("workspace-{}", agent.id)).to_string_lossy().to_string()
         };
-        path.to_string_lossy().to_string()
-    };
-
-    // Also ensure agentDir directory exists: ~/.openclaw/agents/{id}/agent
-    let agent_dir_path = std::path::Path::new(&openclaw_home).join("agents").join(&agent.id).join("agent");
-    if !agent_dir_path.exists() {
-        info!("[Agents] Creating agent dir: {}", agent_dir_path.display());
-        let _ = std::fs::create_dir_all(&agent_dir_path);
-    }
-    // Also create sessions directory
-    let sessions_dir = std::path::Path::new(&openclaw_home).join("agents").join(&agent.id).join("sessions");
-    if !sessions_dir.exists() {
-        let _ = std::fs::create_dir_all(&sessions_dir);
-    }
-
-    // Auto-create directory
-    if !file::file_exists(&workspace_path) {
-        info!("[Agents] Creating agent workspace: {}", workspace_path);
-        if let Err(e) = std::fs::create_dir_all(&workspace_path) {
-            error!("[Agents] Failed to create workspace directory: {}", e);
-        }
-    }
-
-    // Auto-create SOUL.md if missing
-    let soul_path = std::path::Path::new(&workspace_path).join("SOUL.md");
-    if !soul_path.exists() {
-        info!("[Agents] SOUL.md missing, creating default for agent: {}", agent.id);
         
-        // Try to copy from root SOUL.md first
-        let root_soul = std::path::Path::new(&openclaw_home).join("SOUL.md");
-        if root_soul.exists() {
-             if let Err(e) = std::fs::copy(&root_soul, &soul_path) {
-                 warn!("[Agents] Failed to copy root SOUL.md: {}", e);
-                 // Fallback to default content
-                 let default_soul = format!("# Identity for {}\n\nYou are an AI agent named {}.", agent.id, agent.id);
-                 let _ = std::fs::write(&soul_path, default_soul);
-             }
-        } else {
-            // Write default content
-            let default_soul = format!("# Identity for {}\n\nYou are an AI agent named {}.", agent.id, agent.id);
-            if let Err(e) = std::fs::write(&soul_path, default_soul) {
-                error!("[Agents] Failed to write default SOUL.md: {}", e);
+        info!("[Agents] New agent '{}' — running `openclaw agents add --workspace {}`", agent.id, workspace_dir);
+        match shell::run_openclaw(&["agents", "add", &agent.id, "--workspace", &workspace_dir]) {
+            Ok(output) => {
+                info!("[Agents] openclaw agents add succeeded: {}", output);
+            }
+            Err(e) => {
+                // NOTE: The CLI may exit with code 1 due to TUI stdin issues in non-interactive mode,
+                // but it still writes the agent entry to openclaw.json successfully.
+                warn!("[Agents] openclaw agents add exited with error (may still have written config): {}", e);
             }
         }
+        
+        // CRITICAL: Always reload config after CLI runs — it may have written the entry
+        // even if exit code was non-zero (TUI library issue in non-interactive mode)
+        config = load_openclaw_config()?;
+        list = if let Some(arr) = config["agents"].get("list").and_then(|v| v.as_array()) {
+            arr.clone()
+        } else if let Some(obj) = config["agents"].get("list").and_then(|v| v.as_object()) {
+            obj.iter().map(|(id, val)| {
+                let mut entry = val.clone();
+                entry["id"] = json!(id);
+                entry
+            }).collect()
+        } else {
+            Vec::new()
+        };
     }
 
-    // Update config object with resolving defaults if needed (e.g. if we auto-created, maybe we should save the path?)
-    // Creating the object again to include updates if any
-    let mut final_agent_obj = agent_obj.clone();
-    
-    // If workspace was not explicit in input but we determined it, should we save it? 
-    // OpenClaw Core conventions: 
-    // - if 'workspace' is set, it uses that absolute path.
-    // - if 'agentDir' is set, it uses ~/.openclaw/{agentDir}
-    // - if neither, it defaults to ~/.openclaw/agents/{id}
-    
-    // Changing the logic: We won't force 'workspace' into the config if it wasn't there, 
-    // to rely on Core's default behavior, but we ensured the directory exists.
-
-
-    // Update or add the agent
+    // Update or add the agent — for CLI-created entries, merge our fields into existing entry
     if let Some(existing) = list.iter_mut().find(|a| a.get("id").and_then(|v| v.as_str()) == Some(&agent.id)) {
-        *existing = agent_obj;
+        // Merge: only overwrite fields the user explicitly set (non-empty)
+        if let Some(model) = &agent.model {
+            if !model.is_empty() {
+                existing["model"] = json!({ "primary": model });
+            }
+        }
+        if let Some(is_default) = agent.default {
+            if is_default {
+                existing["default"] = json!(true);
+            }
+        }
+        if let Some(sub) = &agent.subagents {
+            if let Some(allow) = &sub.allow_agents {
+                if !allow.is_empty() {
+                    existing["subagents"] = json!({ "allowAgents": allow });
+                }
+            }
+        }
+        if let Some(sandbox) = agent.sandbox {
+            existing["sandbox"] = json!(sandbox);
+        }
+        if let Some(heartbeat) = &agent.heartbeat {
+            if !heartbeat.is_empty() {
+                existing["heartbeat"] = json!({ "every": heartbeat });
+            }
+        }
     } else {
         list.push(agent_obj);
     }

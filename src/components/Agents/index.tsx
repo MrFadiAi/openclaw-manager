@@ -140,7 +140,6 @@ export function Agents() {
     const [wizardForm, setWizardForm] = useState({
         botAccountId: '',
         agentId: '',
-        systemPrompt: '',
         model: '',
         isDefault: false,
     });
@@ -285,24 +284,12 @@ export function Agents() {
     const handleWizardSubmit = async () => {
         setSaving(true);
         try {
-            // 1. Save agent
-            // Auto-configure workspace path based on Default Agent toggle
-            const agentWorkspace = openclawHomeDir
-                ? (wizardForm.isDefault
-                    ? `${openclawHomeDir}/workspace`
-                    : `${openclawHomeDir}/workspace-${wizardForm.agentId}`
-                ).replace(/\\/g, '/')
-                : null;
-            // Agent directory: agents/{id}/agent
-            const agentDirPath = openclawHomeDir
-                ? `${openclawHomeDir}/agents/${wizardForm.agentId}/agent`.replace(/\\/g, '/')
-                : null;
-
+            // Save agent — backend will run `openclaw agents add` for proper structure
             const agent: AgentInfo = {
                 id: wizardForm.agentId,
                 name: null,
-                workspace: agentWorkspace,
-                agent_dir: agentDirPath,
+                workspace: null,
+                agent_dir: null,
                 model: wizardForm.model || null,
                 sandbox: null,
                 heartbeat: null,
@@ -311,21 +298,11 @@ export function Agents() {
             };
             await invoke('save_agent', { agent });
 
-            // 2. Save system prompt if provided
-            if (wizardForm.systemPrompt.trim()) {
-                await invoke('save_agent_system_prompt', {
-                    agentId: wizardForm.agentId,
-                    workspace: openclawHomeDir || null,
-                    content: wizardForm.systemPrompt
-                });
-            }
-
             // Note: save_agent auto-creates binding if matching account exists
 
             setShowWizardDialog(false);
             setWizardStep(0);
-            setWizardStep(0);
-            setWizardForm({ botAccountId: '', agentId: '', systemPrompt: '', model: '', isDefault: false });
+            setWizardForm({ botAccountId: '', agentId: '', model: '', isDefault: false });
             fetchData();
         } catch (e) {
             setError(String(e));
@@ -420,7 +397,6 @@ export function Agents() {
                                 setWizardForm({
                                     botAccountId: telegramAccounts[0]?.id || '',
                                     agentId: '',
-                                    systemPrompt: '',
                                     model: '',
                                     isDefault: false,
                                 });
@@ -820,27 +796,29 @@ export function Agents() {
                                     />
                                 </div>
 
-                                {/* System Prompt Editor (actually SOUL.md in OpenClaw) */}
-                                <div>
-                                    <label className="block text-sm text-gray-400 mb-1 flex items-center gap-2">
-                                        <FileText size={14} />
-                                        Personality (SOUL.md)
-                                    </label>
-                                    {loadingPrompt ? (
-                                        <div className="flex items-center gap-2 text-gray-500 text-sm py-4">
-                                            <Loader2 className="animate-spin" size={14} /> Loading...
-                                        </div>
-                                    ) : (
-                                        <textarea
-                                            value={systemPrompt}
-                                            onChange={e => setSystemPrompt(e.target.value)}
-                                            className="input-base font-mono text-sm"
-                                            rows={6}
-                                            placeholder="You are a coding expert specializing in..."
-                                        />
-                                    )}
-                                    <p className="text-xs text-gray-500 mt-1">Defines the agent's personality. Saved to <code className="text-gray-400">{agentForm.workspace || `workspace-${agentForm.id || '...'}`}/SOUL.md</code></p>
-                                </div>
+                                {/* System Prompt Editor — only shown when editing existing agents */}
+                                {editingAgent && (
+                                    <div>
+                                        <label className="block text-sm text-gray-400 mb-1 flex items-center gap-2">
+                                            <FileText size={14} />
+                                            Personality (SOUL.md)
+                                        </label>
+                                        {loadingPrompt ? (
+                                            <div className="flex items-center gap-2 text-gray-500 text-sm py-4">
+                                                <Loader2 className="animate-spin" size={14} /> Loading...
+                                            </div>
+                                        ) : (
+                                            <textarea
+                                                value={systemPrompt}
+                                                onChange={e => setSystemPrompt(e.target.value)}
+                                                className="input-base font-mono text-sm"
+                                                rows={6}
+                                                placeholder="You are a coding expert specializing in..."
+                                            />
+                                        )}
+                                        <p className="text-xs text-gray-500 mt-1">Defines the agent's personality. Saved to <code className="text-gray-400">{agentForm.workspace || `workspace-${agentForm.id || '...'}`}/SOUL.md</code></p>
+                                    </div>
+                                )}
 
                                 <div className="flex items-center gap-2 pt-2">
                                     <input
@@ -1017,7 +995,7 @@ export function Agents() {
 
                             {/* Step indicators */}
                             <div className="px-6 pt-4 flex gap-2">
-                                {['Bot Account', 'Agent Config', 'Personality'].map((label, i) => (
+                                {['Bot Account', 'Agent Config'].map((label, i) => (
                                     <div key={i} className="flex-1">
                                         <div className={`h-1 rounded-full transition-colors ${i <= wizardStep ? 'bg-claw-500' : 'bg-dark-600'}`} />
                                         <p className={`text-xs mt-1 ${i <= wizardStep ? 'text-claw-400' : 'text-gray-600'}`}>{label}</p>
@@ -1086,24 +1064,7 @@ export function Agents() {
                                     </div>
                                 )}
 
-                                {wizardStep === 2 && (
-                                    <div className="space-y-4">
-                                        <p className="text-sm text-gray-300">Define the personality for <span className="text-claw-400 font-medium">{wizardForm.agentId}</span>.</p>
-                                        <div>
-                                            <label className="block text-sm text-gray-400 mb-1 flex items-center gap-2">
-                                                <FileText size={14} />
-                                                Personality (SOUL.md)
-                                            </label>
-                                            <textarea
-                                                value={wizardForm.systemPrompt}
-                                                onChange={e => setWizardForm({ ...wizardForm, systemPrompt: e.target.value })}
-                                                className="input-base font-mono text-sm"
-                                                rows={6}
-                                                placeholder="You are a coding expert. You help users write clean, efficient code..."
-                                            />
-                                        </div>
-                                    </div>
-                                )}
+
                             </div>
 
                             <div className="px-6 py-4 border-t border-dark-600 flex justify-between">
@@ -1113,10 +1074,10 @@ export function Agents() {
                                 >
                                     {wizardStep === 0 ? 'Cancel' : 'Back'}
                                 </button>
-                                {wizardStep < 2 ? (
+                                {wizardStep < 1 ? (
                                     <button
                                         onClick={() => setWizardStep(wizardStep + 1)}
-                                        disabled={wizardStep === 0 ? !wizardForm.botAccountId : !wizardForm.agentId}
+                                        disabled={!wizardForm.botAccountId}
                                         className="btn-primary flex items-center gap-2"
                                     >
                                         Next

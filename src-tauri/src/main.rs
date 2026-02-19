@@ -91,6 +91,7 @@ fn main() {
             installer::init_openclaw_config,
             installer::open_install_terminal,
             installer::uninstall_openclaw,
+            installer::install_gateway_service,
             // Version update
             installer::check_openclaw_update,
             installer::update_openclaw,

@@ -11,6 +11,7 @@ import {
   Package,
   Shield,
   RefreshCw,
+  Server,
 } from 'lucide-react';
 import { isTauri } from '../../lib/tauri';
 
@@ -22,6 +23,7 @@ interface EnvironmentStatus {
   git_version: string | null;
   openclaw_installed: boolean;
   openclaw_version: string | null;
+  gateway_service_installed: boolean;
   config_dir_exists: boolean;
   ready: boolean;
   os: string;
@@ -115,6 +117,20 @@ export function SystemInfo() {
     }
   };
 
+  const handleInstallGateway = async () => {
+    setInstalling('gateway');
+    setError(null);
+    try {
+      await invoke<string>('install_gateway_service');
+      // Gateway install opens an elevated terminal — user needs to complete it there
+      // Don't auto-refresh; user clicks Refresh when done
+    } catch (e) {
+      setError(`Failed to install Gateway Service: ${e}`);
+    } finally {
+      setInstalling(null);
+    }
+  };
+
   const handleOpenUrl = async (url: string) => {
     try {
       await open(url);
@@ -179,6 +195,16 @@ export function SystemInfo() {
       installAction: handleInstallOpenclaw,
       canAutoInstall: true,
     },
+    ...(envStatus.openclaw_installed ? [{
+      id: 'gateway',
+      name: 'Gateway Service',
+      description: 'System service (requires admin)',
+      icon: <Server size={18} />,
+      installed: envStatus.gateway_service_installed,
+      version: null,
+      installAction: handleInstallGateway,
+      canAutoInstall: true,
+    }] : []),
   ];
 
   const installedCount = requirements.filter(r => r.installed).length;
