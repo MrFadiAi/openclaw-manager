@@ -1855,14 +1855,24 @@ pub async fn save_telegram_account(account: TelegramAccount) -> Result<String, S
     if let Some(top_token) = config["channels"]["telegram"].get("botToken").and_then(|v| v.as_str()).map(|s| s.to_string()) {
         if !top_token.is_empty() {
             // Move existing single-bot config to accounts["default"]
-            let existing = json!({
+            let mut existing = json!({
                 "botToken": top_token,
                 "groupPolicy": config["channels"]["telegram"].get("groupPolicy").cloned().unwrap_or(json!(null)),
                 "dmPolicy": config["channels"]["telegram"].get("dmPolicy").cloned().unwrap_or(json!(null)),
                 "streamMode": config["channels"]["telegram"].get("streamMode").cloned().unwrap_or(json!(null)),
                 "groups": config["channels"]["telegram"].get("groups").cloned().unwrap_or(json!(null)),
             });
+
+            // Migrate allowList
+            if let Some(allow_from) = config["channels"]["telegram"].get("allowFrom").cloned() {
+                existing["allowFrom"] = allow_from;
+            }
+             if let Some(group_allow_from) = config["channels"]["telegram"].get("groupAllowFrom").cloned() {
+                existing["groupAllowFrom"] = group_allow_from;
+            }
+
             config["channels"]["telegram"]["accounts"]["default"] = existing;
+            
             // Remove top-level single-bot fields
             if let Some(tg) = config["channels"]["telegram"].as_object_mut() {
                 tg.remove("botToken");
