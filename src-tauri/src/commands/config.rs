@@ -437,8 +437,8 @@ pub async fn get_official_providers() -> Result<Vec<OfficialProvider>, String> {
             docs_url: Some("https://docs.openclaw.ai/providers/glm".to_string()),
             suggested_models: vec![
                 SuggestedModel {
-                    id: "glm-4".to_string(),
-                    name: "GLM-4".to_string(),
+                    id: "glm-5".to_string(),
+                    name: "GLM-5".to_string(),
                     description: Some("Latest flagship model".to_string()),
                     context_window: Some(128000),
                     max_tokens: Some(8192),
@@ -2491,47 +2491,138 @@ pub async fn save_agent(agent: AgentInfo) -> Result<String, String> {
     // For NEW agents: use `openclaw agents add <id> --workspace <dir>` to create proper directory structure
     // The --workspace flag is required to make the CLI non-interactive
     let is_new_agent = !list.iter().any(|a| a.get("id").and_then(|v| v.as_str()) == Some(&agent.id));
+    let mut cli_error: Option<String> = None;
+    let is_reserved_name = agent.id.eq_ignore_ascii_case("main"); // Check if name is "main" to bypass CLI
     
     if is_new_agent {
-        let openclaw_home = platform::get_config_dir();
-        let workspace_dir = if let Some(ws) = &agent.workspace {
-            ws.clone()
-        } else if agent.default == Some(true) {
-            std::path::Path::new(&openclaw_home).join("workspace").to_string_lossy().to_string()
+        if !is_reserved_name {
+            let openclaw_home = platform::get_config_dir();
+            let workspace_dir = if let Some(ws) = &agent.workspace {
+                ws.clone()
+            } else if agent.default == Some(true) {
+                std::path::Path::new(&openclaw_home).join("workspace").to_string_lossy().to_string()
+            } else {
+                std::path::Path::new(&openclaw_home).join(format!("workspace-{}", agent.id)).to_string_lossy().to_string()
+            };
+            
+            info!("[Agents] New agent '{}' — running `openclaw agents add --workspace {}`", agent.id, workspace_dir);
+            match shell::run_openclaw(&["agents", "add", &agent.id, "--workspace", &workspace_dir]) {
+                Ok(output) => {
+                    info!("[Agents] openclaw agents add succeeded: {}", output);
+                }
+                Err(e) => {
+                    // NOTE: The CLI may exit with code 1 due to TUI stdin issues in non-interactive mode,
+                    // but it still writes the agent entry to openclaw.json successfully.
+                    warn!("[Agents] openclaw agents add exited with error (may still have written config): {}", e);
+                    cli_error = Some(e);
+                }
+            }
+            
+            // CRITICAL: Always reload config after CLI runs — it may have written the entry
+            config = load_openclaw_config()?;
+            list = if let Some(arr) = config["agents"].get("list").and_then(|v| v.as_array()) {
+                arr.clone()
+            } else if let Some(obj) = config["agents"].get("list").and_then(|v| v.as_object()) {
+                obj.iter().map(|(id, val)| {
+                    let mut entry = val.clone();
+                    entry["id"] = json!(id);
+                    entry
+                }).collect()
+            } else {
+                Vec::new()
+            };
         } else {
-            std::path::Path::new(&openclaw_home).join(format!("workspace-{}", agent.id)).to_string_lossy().to_string()
-        };
-        
-        info!("[Agents] New agent '{}' — running `openclaw agents add --workspace {}`", agent.id, workspace_dir);
-        match shell::run_openclaw(&["agents", "add", &agent.id, "--workspace", &workspace_dir]) {
-            Ok(output) => {
-                info!("[Agents] openclaw agents add succeeded: {}", output);
-            }
-            Err(e) => {
-                // NOTE: The CLI may exit with code 1 due to TUI stdin issues in non-interactive mode,
-                // but it still writes the agent entry to openclaw.json successfully.
-                warn!("[Agents] openclaw agents add exited with error (may still have written config): {}", e);
-            }
+             info!("[Agents] Skipping CLI for reserved name '{}', will create manually.", agent.id);
         }
-        
-        // CRITICAL: Always reload config after CLI runs — it may have written the entry
-        // even if exit code was non-zero (TUI library issue in non-interactive mode)
-        config = load_openclaw_config()?;
-        list = if let Some(arr) = config["agents"].get("list").and_then(|v| v.as_array()) {
-            arr.clone()
-        } else if let Some(obj) = config["agents"].get("list").and_then(|v| v.as_object()) {
-            obj.iter().map(|(id, val)| {
-                let mut entry = val.clone();
-                entry["id"] = json!(id);
-                entry
-            }).collect()
-        } else {
-            Vec::new()
-        };
     }
 
-    // Update or add the agent — for CLI-created entries, merge our fields into existing entry
-    if let Some(existing) = list.iter_mut().find(|a| a.get("id").and_then(|v| v.as_str()) == Some(&agent.id)) {
+    // Find agent in list (handle case-insensitive match if CLI normalized the ID, e.g. AgentTest -> agenttest)
+    let match_index = list.iter().position(|a| {
+        a.get("id").and_then(|v| v.as_str()) == Some(&agent.id)
+    }).or_else(|| {
+        list.iter().position(|a| {
+             a.get("id").and_then(|v| v.as_str()).map(|s| s.to_lowercase()) == Some(agent.id.to_lowercase())
+        })
+    });
+
+    // Helper closure to create agent directories
+    let ensure_directories = |agent_entry: &serde_json::Value| {
+        let openclaw_home = platform::get_config_dir();
+        
+        // 1. Agent Config Directory
+        // Use configured 'agentDir' or default to ~/.openclaw/agents/<id>/agent
+        // The CLI standard is to have the agent files inside an `agent` subdirectory
+        let agent_dir_path = if let Some(dir) = agent_entry.get("agentDir").and_then(|v| v.as_str()) {
+             std::path::PathBuf::from(dir)
+        } else {
+             let id = agent_entry.get("id").and_then(|v| v.as_str()).unwrap_or("unknown");
+             std::path::Path::new(&openclaw_home).join("agents").join(id).join("agent")
+        };
+        
+        if !agent_dir_path.exists() {
+             info!("[Agents] Creating agent directory: {:?}", agent_dir_path);
+             let _ = std::fs::create_dir_all(&agent_dir_path);
+        }
+        
+        // SOUL.md
+        let soul_path = agent_dir_path.join("SOUL.md");
+        if !soul_path.exists() {
+             info!("[Agents] SOUL.md missing, creating default");
+             let name = agent_entry.get("name").and_then(|v| v.as_str()).unwrap_or("agent");
+             let default_soul = format!("You are {}, a helpful AI assistant.", name);
+             let _ = std::fs::write(soul_path, default_soul);
+        }
+
+        // models.json
+        let models_path = agent_dir_path.join("models.json");
+        if !models_path.exists() {
+             info!("[Agents] models.json missing, creating default");
+             let default_models = json!({
+                "providers": {
+                    "glm": {
+                        "baseUrl": "https://open.bigmodel.cn/api/paas/v4",
+                        "apiKey": "",
+                        "models": [ 
+                            {
+                                "id": "glm-4",
+                                "name": "GLM-4",
+                                "api": "openai-completions",
+                                "reasoning": false,
+                                "input": ["text", "image"],
+                                "contextWindow": 128000,
+                                "maxTokens": 8192
+                            }
+                        ]
+                    }
+                }
+             });
+             // Pretty print the JSON
+             if let Ok(content) = serde_json::to_string_pretty(&default_models) {
+                 let _ = std::fs::write(models_path, content);
+             }
+        }
+        
+        // 2. Workspace Directory
+        // Use configured 'workspace' or default to ~/.openclaw/workspace-<id>
+        let workspace_path = if let Some(ws) = agent_entry.get("workspace").and_then(|v| v.as_str()) {
+             std::path::PathBuf::from(ws)
+        } else {
+             let id = agent_entry.get("id").and_then(|v| v.as_str()).unwrap_or("unknown");
+             std::path::Path::new(&openclaw_home).join(format!("workspace-{}", id))
+        };
+        
+        if !workspace_path.exists() {
+             info!("[Agents] Creating workspace directory: {:?}", workspace_path);
+             let _ = std::fs::create_dir_all(&workspace_path);
+        }
+        
+        // Return paths to update config if they were defaults
+        (agent_dir_path.to_string_lossy().to_string(), workspace_path.to_string_lossy().to_string())
+    };
+
+    // Update or add the agent
+    if let Some(idx) = match_index {
+        let existing = &mut list[idx];
         // Merge: only overwrite fields the user explicitly set (non-empty)
         if let Some(model) = &agent.model {
             if !model.is_empty() {
@@ -2558,8 +2649,35 @@ pub async fn save_agent(agent: AgentInfo) -> Result<String, String> {
                 existing["heartbeat"] = json!({ "every": heartbeat });
             }
         }
+        
+        // Repair directories for existing agent
+        let _ = ensure_directories(existing);
+        
     } else {
-        list.push(agent_obj);
+        // Not found in config (New agent, manual addition)
+        
+        // If we tried to create it via CLI and it's missing (and NOT reserved), that means CLI strictly failed.
+        if let Some(err) = cli_error {
+             if !is_reserved_name {
+                 return Err(format!("Failed to create agent via CLI: {}. Check logs or name uniqueness.", err));
+             }
+        }
+
+        // Add to list
+        let mut new_entry = agent_obj.clone();
+        
+        // Ensure directories and get default paths if we need to explicitly save them
+        let (actual_agent_dir, actual_workspace) = ensure_directories(&new_entry);
+        
+        // If user didn't specify paths, save the defaults we just used/created
+        if new_entry.get("agentDir").is_none() {
+             new_entry["agentDir"] = json!(actual_agent_dir);
+        }
+        if new_entry.get("workspace").is_none() {
+             new_entry["workspace"] = json!(actual_workspace);
+        }
+        
+        list.push(new_entry);
     }
 
     config["agents"]["list"] = json!(list);
@@ -2653,7 +2771,65 @@ pub async fn delete_agent(agent_id: String) -> Result<String, String> {
     info!("[Agents] Deleting agent: {}", agent_id);
     let mut config = load_openclaw_config()?;
 
-    // Remove from agents.list (array format)
+    // 1. Find the agent to get its paths (before deleting from config)
+    let mut agent_dir_to_delete: Option<String> = None;
+    let mut workspace_to_delete: Option<String> = None;
+
+    if let Some(list) = config.pointer("/agents/list").and_then(|v| v.as_array()) {
+        if let Some(agent) = list.iter().find(|a| a.get("id").and_then(|v| v.as_str()) == Some(&agent_id)) {
+            // Get agent directory
+            if let Some(dir) = agent.get("agentDir").and_then(|v| v.as_str()) {
+                agent_dir_to_delete = Some(dir.to_string());
+            }
+            // Get workspace directory
+            if let Some(ws) = agent.get("workspace").and_then(|v| v.as_str()) {
+                workspace_to_delete = Some(ws.to_string());
+            } else {
+                // Fallback: deduce workspace path if default pattern was used
+                let openclaw_home = platform::get_config_dir();
+                let default_ws = std::path::Path::new(&openclaw_home).join(format!("workspace-{}", agent_id));
+                if default_ws.exists() {
+                    workspace_to_delete = Some(default_ws.to_string_lossy().to_string());
+                }
+            }
+        }
+    }
+
+    // 2. Delete the files (if they exist)
+    // We do this BEFORE updating config, but we don't abort if it fails (just warn)
+    // because we still want to remove the broken/stale entry from config.
+
+    if let Some(agent_dir) = agent_dir_to_delete {
+        let path = std::path::Path::new(&agent_dir);
+        if path.exists() {
+            info!("[Agents] Removing agent directory: {}", agent_dir);
+            if let Err(e) = std::fs::remove_dir_all(path) {
+                warn!("[Agents] Failed to remove agent directory {}: {}", agent_dir, e);
+            }
+        }
+    } else {
+        // Fallback: try default location if not specified in config
+        let openclaw_home = platform::get_config_dir();
+        let default_agent_dir = std::path::Path::new(&openclaw_home).join("agents").join(&agent_id);
+        if default_agent_dir.exists() {
+             info!("[Agents] Removing default agent directory: {:?}", default_agent_dir);
+             if let Err(e) = std::fs::remove_dir_all(&default_agent_dir) {
+                warn!("[Agents] Failed to remove default agent directory: {}", e);
+            }
+        }
+    }
+
+    if let Some(workspace) = workspace_to_delete {
+        let path = std::path::Path::new(&workspace);
+        if path.exists() {
+            info!("[Agents] Removing workspace directory: {}", workspace);
+            if let Err(e) = std::fs::remove_dir_all(path) {
+                warn!("[Agents] Failed to remove workspace directory {}: {}", workspace, e);
+            }
+        }
+    }
+
+    // 3. Remove from agents.list (array format)
     if let Some(list) = config.pointer_mut("/agents/list").and_then(|v| v.as_array_mut()) {
         list.retain(|a| a.get("id").and_then(|v| v.as_str()) != Some(&agent_id));
     }
@@ -2668,7 +2844,7 @@ pub async fn delete_agent(agent_id: String) -> Result<String, String> {
     }
 
     save_openclaw_config(&config)?;
-    Ok(format!("Agent '{}' deleted", agent_id))
+    Ok(format!("Agent '{}' and its files were deleted", agent_id))
 }
 
 /// Save an agent binding rule
